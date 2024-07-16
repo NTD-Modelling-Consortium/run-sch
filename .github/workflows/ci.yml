@@ -7,7 +7,17 @@ on:
   pull_request:
 
 jobs:
-  build:
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -f Dockerfile . -t sth-amis-fitting-enviroment
+      - run: pytest tests/
+        shell: docker run -ti sth-amis-fitting-enviroment {0}
+      - run: Rscript tests/testthat.R
+        shell: docker run -ti sth-amis-fitting-enviroment {0}
+
+  build-with-different-R-versions:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -18,5 +28,5 @@ jobs:
     - uses: r-lib/actions/setup-r@v2
       with:
         r-version: ${{ matrix.r-version }}
-    - uses: r-lib/actions/setup-r-dependencies@v2
+    - uses: r-lib/actions/setup-renv@v2
 

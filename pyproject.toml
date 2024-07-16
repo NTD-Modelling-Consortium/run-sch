@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools==70.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["sth_amis"]
+
+[project]
+name = "trachoma_amis"
+version = "1.0.0dev"
+authors = [
+  {name = "NTD Modelling Consortium"},
+]
+description = "STH wrapper for AMIS"
+readme = "README.md"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+
+dependencies = [
+    "sch_simulation @ git+ssh://git@github.com/NTD-Modelling-Consortium/ntd-model-sch#cloud-fitting",
+]
+
+requires-python = ">= 3.9"
+
+[project.optional-dependencies]
+dev = [
+    "pytest"
+]

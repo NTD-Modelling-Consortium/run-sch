@@ -206,3 +206,5 @@ rsconnect/
 
 .Rprofile
 .Rbuildignore
+renv/settings.json
+renv/activate.R

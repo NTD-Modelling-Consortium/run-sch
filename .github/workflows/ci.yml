@@ -11,6 +11,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          key: docker-images
+          path: /var/lib/docker/
       - run: docker build -f Dockerfile . -t sth-amis-fitting-enviroment
       - run: docker run -ti sth-amis-fitting-enviroment pytest tests/
       - run: docker run -ti sth-amis-fitting-enviroment Rscript tests/testthat.R

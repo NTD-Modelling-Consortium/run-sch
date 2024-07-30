@@ -7,18 +7,6 @@ on:
   pull_request:
 
 jobs:
-  docker-build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/cache@v4
-        with:
-          key: docker-images
-          path: /var/lib/docker/
-      - run: docker build -f Dockerfile . -t sth-amis-fitting-enviroment
-      - run: docker run sth-amis-fitting-enviroment pytest tests/
-      - run: docker run sth-amis-fitting-enviroment Rscript tests/testthat.R
-
   docker-buildx:
     runs-on: ubuntu-latest
     steps:

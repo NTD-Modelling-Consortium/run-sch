@@ -1,5 +1,10 @@
 import pytest
-from sch_simulation.amis_integration.amis_integration import extract_relevant_results, returnYearlyPrevalenceEstimate, FixedParameters, run_model_with_parameters
+from sth_amis.amis_integration import (
+    extract_relevant_results,
+    returnYearlyPrevalenceEstimate,
+    FixedParameters,
+    run_model_with_parameters,
+)
 import pandas as pd
 from pandas import testing as pdt
 from numpy import testing as npt

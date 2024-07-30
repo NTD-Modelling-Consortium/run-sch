@@ -16,8 +16,8 @@ jobs:
           key: docker-images
           path: /var/lib/docker/
       - run: docker build -f Dockerfile . -t sth-amis-fitting-enviroment
-      - run: docker run -ti sth-amis-fitting-enviroment pytest tests/
-      - run: docker run -ti sth-amis-fitting-enviroment Rscript tests/testthat.R
+      - run: docker run sth-amis-fitting-enviroment pytest tests/
+      - run: docker run sth-amis-fitting-enviroment Rscript tests/testthat.R    
 
   build-with-different-R-versions:
     runs-on: ubuntu-latest

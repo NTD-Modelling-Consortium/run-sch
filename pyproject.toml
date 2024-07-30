@@ -19,7 +19,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "sch_simulation @ git+ssh://git@github.com/NTD-Modelling-Consortium/ntd-model-sch#cloud-fitting",
+    "sch_simulation @ git+https://github.com/NTD-Modelling-Consortium/ntd-model-sch.git@cloud-fitting",
 ]
 
 requires-python = ">= 3.9"

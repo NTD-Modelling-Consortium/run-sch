@@ -17,4 +17,20 @@ jobs:
           path: /var/lib/docker/
       - run: docker build -f Dockerfile . -t sth-amis-fitting-enviroment
       - run: docker run sth-amis-fitting-enviroment pytest tests/
-      - run: docker run sth-amis-fitting-enviroment Rscript tests/testthat.R    
+      - run: docker run sth-amis-fitting-enviroment Rscript tests/testthat.R
+
+  docker-buildx:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    - name: Build and export to Docker
+      uses: docker/build-push-action@v6
+      with:
+        load: true
+        tags: sth-amis-fitting-enviroment
+        push: false
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+    - run: docker run --rm sth-amis-fitting-enviroment pytest tests/
+    - run: docker run --rm sth-amis-fitting-enviroment Rscript tests/testthat.R

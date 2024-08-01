@@ -6,7 +6,6 @@ if (file.exists(file_name)) {
         file.remove("renv.lock")
     }
     file.copy(file_name, "renv.lock")
-    renv::init()
     renv::restore()
 } else {
     print(paste("No renv lock file for R", version))

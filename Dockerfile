@@ -30,7 +30,6 @@ COPY *.R /run-sch/
 COPY sth_amis/ /run-sch/sth_amis/
 COPY tests/ /run-sch/tests/
 COPY pyproject.toml /run-sch/pyproject.toml
-RUN --mount=type=cache,target=/root/.cache/pip ls /root/.cache/pip/wheels && pip install .[dev]
 
 RUN --mount=type=cache,target=/root/.cache/pip pip install .[dev]
 

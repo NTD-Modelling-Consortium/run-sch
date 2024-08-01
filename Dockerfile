@@ -22,9 +22,9 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 ADD . /run-sch
 WORKDIR /run-sch
-RUN pip install .[dev]
+RUN --mount=type=cache,target=/root/.cache/pip pip install .[dev]
 
 ENV RETICULATE_PYTHON_ENV="/opt/venv/"
 
-RUN Rscript setup_r_env.r
+RUN --mount=type=cache,target=/root/.cache/R Rscript setup_r_env.r
 # RUN source ../../.venv/bin/activate && Rscript tests/testthat.R

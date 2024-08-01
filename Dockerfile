@@ -20,11 +20,21 @@ RUN apt-get install -y pip python3-venv
 RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-ADD . /run-sch
+COPY renv_4*.lock /run-sch/
+COPY setup_r_env.R /run-sch/setup_r_env.R
+COPY DESCRIPTION /run-sch/DESCRIPTION
 WORKDIR /run-sch
+RUN --mount=type=cache,target=/root/.cache/R Rscript setup_r_env.R
+
+COPY *.R /run-sch/
+COPY sth_amis/ /run-sch/sth_amis/
+COPY tests/ /run-sch/tests/
+COPY pyproject.toml /run-sch/pyproject.toml
+RUN --mount=type=cache,target=/root/.cache/pip ls /root/.cache/pip/wheels && pip install .[dev]
+
 RUN --mount=type=cache,target=/root/.cache/pip pip install .[dev]
 
 ENV RETICULATE_PYTHON_ENV="/opt/venv/"
 
-RUN --mount=type=cache,target=/root/.cache/R Rscript setup_r_env.r
+
 # RUN source ../../.venv/bin/activate && Rscript tests/testthat.R

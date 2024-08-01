@@ -12,6 +12,26 @@ jobs:
     steps:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
+    - name: Cache R dependencies into and out of docker image
+      uses: actions/cache@v3
+      env:
+        cache-name: cache-r-packages
+      with:
+        key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('renv*.lock') }}
+        path: |
+          /root/.cache/R
+        restore-keys: |
+          ${{ runner.os }}-build-${{ env.cache-name }}-
+    - name: Cache python dependencies into and out of docker image
+      uses: actions/cache@v3
+      env:
+        cache-name: cache-python-packages
+      with:
+        key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('pyproject.toml') }}
+        path: |
+          /root/.cache/pip
+        restore-keys: |
+          ${{ runner.os }}-build-${{ env.cache-name }}-
     - name: Build and export to Docker
       uses: docker/build-push-action@v6
       with:

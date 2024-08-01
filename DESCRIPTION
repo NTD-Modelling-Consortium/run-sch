@@ -1,5 +1,5 @@
 Package: SCHSimulationFitting
-Title: Integrates the SCH Simulation into the AMIS algorithm. Testing caching
+Title: Integrates the SCH Simulation into the AMIS algorithm.
 Version: 1.0.1.9000
 License: MIT
 Encoding: UTF-8

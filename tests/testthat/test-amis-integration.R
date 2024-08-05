@@ -1,6 +1,6 @@
 setwd("../..")
 
-source("amis_integration.R")
+devtools::load_all()
 
 sch_simulation <- get_amis_integration_package()
 example_parameters <- sch_simulation$FixedParameters(

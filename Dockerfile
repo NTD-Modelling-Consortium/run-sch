@@ -25,7 +25,7 @@ COPY DESCRIPTION /run-sch/DESCRIPTION
 WORKDIR /run-sch
 RUN --mount=type=cache,target=/root/.cache/R Rscript setup_r_env.R
 
-COPY *.R /run-sch/
+COPY R/*.R /run-sch/R/
 COPY sth_amis/ /run-sch/sth_amis/
 COPY tests/ /run-sch/tests/
 COPY pyproject.toml /run-sch/pyproject.toml

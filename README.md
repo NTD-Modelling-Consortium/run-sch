@@ -23,6 +23,11 @@ $ docker build -f Dockerfile . -t sth-amis-fitting-environment
 $ docker run sth-amis-fitting-environment Rscript <NAME OF FITTING SCRIPT>
 ```
 
+## Running the AMIS algorithm without Docker
+
+Having setup your local environment in an equivalent way to the Docker file, 
+you should be able to run `Rscript <NAME OF FITTING SCRIPT>`. 
+
 ## Renv lock files
 
 Due to different versions of R requiring different packages, the lock file depends on the version of R.

@@ -33,6 +33,3 @@ COPY pyproject.toml /run-sch/pyproject.toml
 RUN --mount=type=cache,target=/root/.cache/pip pip install .[dev]
 
 ENV RETICULATE_PYTHON_ENV="/opt/venv/"
-
-
-# RUN source ../../.venv/bin/activate && Rscript tests/testthat.R

@@ -1,4 +1,4 @@
-`# Run STH & SCH
+# Run STH & SCH
 
 A project for running the STH model through AMIS in a Docker container. 
 

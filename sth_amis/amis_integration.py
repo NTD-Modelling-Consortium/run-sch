@@ -4,6 +4,7 @@ import os
 import time
 from typing import Literal
 import pandas as pd
+import pickle
 import sch_simulation
 import numpy as np
 from sch_simulation.helsim_FUNC_KK.configuration import setupSD
@@ -84,7 +85,7 @@ def returnYearlyPrevalenceEstimate(R0, k, seed, fixed_parameters: FixedParameter
     PrevalenceEstimate = results_processing.getPrevalenceWholePop(
         output, params, numReps, params.Unfertilized, fixed_parameters.survey_type, 1
     )
-    return PrevalenceEstimate
+    return PrevalenceEstimate, SD
 
 
 def extract_relevant_results(
@@ -104,47 +105,73 @@ def extract_relevant_results(
 
     return prevalence_for_relevant_years
 
-def run_and_extract_results(parameter_set, seed, fixed_parameters, year_indices, include_output=False):
+
+def run_and_extract_results(
+    parameter_set, seed, fixed_parameters, year_indices, include_output=False
+):
     R0 = parameter_set[0]
     k = parameter_set[1]
 
     start_time = time.time()
 
-    results = returnYearlyPrevalenceEstimate(R0, k, seed, fixed_parameters)
+    results, end_state = returnYearlyPrevalenceEstimate(R0, k, seed, fixed_parameters)
 
     end_time = time.time()
     if include_output:
         print(f'Run R0: {R0}, k: {k} took {end_time-start_time:10.2f} seconds')
 
-    return extract_relevant_results(results, year_indices)
+    return extract_relevant_results(results, year_indices), end_state
+
 
 def run_model_with_parameters(
-    seeds, parameters, fixed_parameters: FixedParameters, year_indices: list[int],
-    num_parallel_jobs = -2 # default to all but one process to keep computers responsive
+    seeds,
+    parameters,
+    fixed_parameters: FixedParameters,
+    year_indices: list[int],
+    num_parallel_jobs=-2,  # default to all but one process to keep computers responsive
+    should_save_state=False,
 ):
     if len(seeds) != len(parameters):
         raise ValueError(
             f"Must have same number of seeds as parameters {len(seeds)} != {len(parameters)}"
         )
-    
+
     parse_coverage_input(
         fixed_parameters.coverage_file_name,
         fixed_parameters.coverage_text_file_storage_name,
     )
-    
+
     print(f'Running {len(seeds)} simulations across {num_parallel_jobs} cores')
 
     num_runs = len(seeds)
 
     print_timing_info_every_n_times = 10
 
-    final_prevalence_for_each_run = Parallel(n_jobs=num_parallel_jobs)(delayed(run_and_extract_results)
-        (parameter_set, seed, fixed_parameters, year_indices, include_output=index % print_timing_info_every_n_times == 0) 
-        for index, (seed, parameter_set) in enumerate(zip(seeds, parameters)))
+    run_results = Parallel(n_jobs=num_parallel_jobs)(
+        delayed(run_and_extract_results)(
+            parameter_set,
+            seed,
+            fixed_parameters,
+            year_indices,
+            include_output=index % print_timing_info_every_n_times == 0,
+        )
+        for index, (seed, parameter_set) in enumerate(zip(seeds, parameters))
+    )
+
+    final_prevalence_for_each_run = list(
+        map(lambda run_result: run_result[0], run_results)
+    )
 
     results_np_array = np.array(final_prevalence_for_each_run).reshape(
         num_runs, len(year_indices)
     )
+
+    if should_save_state:
+        final_states = list(map(lambda run_result: run_result[1], run_results))
+        print("Saving pickle files")
+        for index, final_state in enumerate(final_states):
+            with open(f"final_state_{index}.pickle", "wb") as pickle_file:
+                pickle.dump(final_state, pickle_file)
 
     os.remove(fixed_parameters.coverage_text_file_storage_name)
 

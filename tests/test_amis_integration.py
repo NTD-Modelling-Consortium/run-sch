@@ -1,3 +1,4 @@
+import os
 import pytest
 from sth_amis.amis_integration import (
     extract_relevant_results,
@@ -39,7 +40,9 @@ def test_running_model_produces_consistent_result():
         example_parameters.coverage_text_file_storage_name,
     )
 
-    results_with_seed1 = returnYearlyPrevalenceEstimate(3.0, 0.3, seed=1, fixed_parameters=example_parameters)
+    results_with_seed1, _ = returnYearlyPrevalenceEstimate(
+        3.0, 0.3, seed=1, fixed_parameters=example_parameters
+    )
     print(results_with_seed1['draw_1'])
     expected_prevalance = [0.1, 0.2, 0.3, 0.3, 0.2, 0.0, 0.1, 0.1, 0.0, 0.0, 0.0, 0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     pdt.assert_series_equal(results_with_seed1['draw_1'], pd.Series(expected_prevalance, name="draw_1"))
@@ -53,6 +56,20 @@ def test_running_parallel_produces_results():
         num_parallel_jobs=2)
     print(results)
     npt.assert_array_equal(results, [[0. ],[0.5],[0.4],[0.8]])
+
+
+def test_running_save_state_saves_state():
+    _ = run_model_with_parameters(
+        seeds=[1],
+        parameters=[(3.0, 0.3)],
+        fixed_parameters=example_parameters,
+        year_indices=[23],
+        num_parallel_jobs=2,
+        should_save_state=True,
+    )
+    assert os.path.exists("final_state_0.pickle")
+    os.remove("final_state_0.pickle")
+
 
 def test_running_model_with_different_seed_gives_different_result():
     parse_coverage_input(

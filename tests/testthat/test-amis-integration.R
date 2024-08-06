@@ -69,6 +69,21 @@ test_that("Running the simulation with different number of years specified compa
     expect_error(build_transmission_model(prevalence_map, example_parameters, year_indices, 2), "Length of prevalance map \\(2\\) must match the number of years provided in year_indices \\(1\\)")
 })
 
+test_that("Runnig the simulation and requesting saving the state saves the state", {
+    prevalence_map <- vector("list", 2)
+    prevalence_map[[1]]$data <- matrix(c(0.031, 0.031))
+    prevalence_map[[2]]$data <- matrix(c(0.021, 0.021))
+
+    year_indices <- c(0L, 23L)
+
+    tranmission_model <- build_transmission_model(prevalence_map, example_parameters, year_indices, 2, save_final_state = TRUE)
+    result <- tranmission_model(c(1L, 2L), matrix(c(3, 3, 0.3, 0.3), ncol = 2), 1)
+    expect_true(file.exists("final_state_0.pickle"))
+    expect_true(file.exists("final_state_1.pickle"))
+    file.remove("final_state_0.pickle")
+    file.remove("final_state_1.pickle")
+})
+
 test_that("Running the AMIS integration on multiple time points should complete with the error about weight on particles", {
     # Example prevalence map, with two locations, fitting to two time times
     # Both locations start at 0.031, and the second time point is 0.021

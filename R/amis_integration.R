@@ -1,6 +1,6 @@
 get_amis_integration_package <- function() {
   importlib <- reticulate::import("importlib")
-  sch_simulation <- reticulate::import("sch_simulation.amis_integration.amis_integration")
+  sch_simulation <- reticulate::import("sth_amis.amis_integration")
   importlib$reload(sch_simulation)
   return(sch_simulation)
 }

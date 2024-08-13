@@ -49,6 +49,12 @@ class FixedParameters:
     A higher number will result in faster but less accurate simulation."""
 
 
+@dataclass(eq=True, frozen=True)
+class StateSnapshotConfig:
+    directory: str = "."
+    name_prefix: str = "final_state"
+
+
 def returnYearlyPrevalenceEstimate(R0, k, seed, fixed_parameters: FixedParameters):
     np.random.seed(seed)
     # initialize the parameters
@@ -129,7 +135,7 @@ def run_model_with_parameters(
     fixed_parameters: FixedParameters,
     year_indices: list[int],
     num_parallel_jobs=-2,  # default to all but one process to keep computers responsive
-    should_save_state=False,
+    final_state_config: StateSnapshotConfig | None = None,
 ):
     if len(seeds) != len(parameters):
         raise ValueError(
@@ -166,11 +172,16 @@ def run_model_with_parameters(
         num_runs, len(year_indices)
     )
 
-    if should_save_state:
+    if final_state_config is not None:
+        if not os.path.exists(final_state_config.directory):
+            os.makedirs(final_state_config.directory)
         final_states = list(map(lambda run_result: run_result[1], run_results))
         print("Saving pickle files")
         for index, final_state in enumerate(final_states):
-            with open(f"final_state_{index}.pickle", "wb") as pickle_file:
+            with open(
+                f"{final_state_config.directory}/{final_state_config.name_prefix}_{index}.pickle",
+                "wb",
+            ) as pickle_file:
                 pickle.dump(final_state, pickle_file)
 
     os.remove(fixed_parameters.coverage_text_file_storage_name)

@@ -1,8 +1,9 @@
 
 # on cluster:
-#id = as.numeric(Sys.getenv("SLURM_ARRAY_TASK_ID"))
+id = as.numeric(Sys.getenv("SLURM_ARRAY_TASK_ID"))
 # for testing:
-id = 759
+#id = 1
+
 # should be "haematobium", "mansoni"
 species = "haematobium"
 task = "fitting"
@@ -10,9 +11,8 @@ task = "fitting"
 library(dplyr)
 library(AMISforInfectiousDiseases)
 
-setwd("~/Documents/SCH-endgame/run-sch/")
-source("../run-sch/R/amis_integration.R")
- 
+source("R/amis_integration.R")
+
 args <- commandArgs(trailingOnly=TRUE)
 num_cores_to_use <- parallel::detectCores()
 if(length(args) == 1) {
@@ -21,9 +21,11 @@ if(length(args) == 1) {
 
 print(paste0('Using ', num_cores_to_use, ' cores'))
 
-reticulate::use_virtualenv("~/Documents/SCH-endgame/sch-venv", required=TRUE)
+reticulate::use_virtualenv("../.venv", required=TRUE)
 
 sch_simulation <- get_amis_integration_package()
+
+reticulate::py_config()
 
 fixed_parameters <- sch_simulation$FixedParameters(
     # the higher the value of N, the more consistent the results will be
@@ -51,25 +53,26 @@ fixed_parameters <- sch_simulation$FixedParameters(
 )
 
 # Load prevalence map and filter rows for TaskID == id
-year_indices <- c(17L,28L,37L) # 2002, 2013, 2022 (end of year in model)
+year_indices <- c(18L,29L,38L) # 2000, 2013, 2022 (end of year in model)
 load(paste0("../Maps/",species,"_maps.rds"))
 prevalence_map = get(paste0(species,"_maps"))
 prevalence_map = lapply(1:length(prevalence_map), function(t){
   output=list(data = as.matrix(prevalence_map[[t]]$data %>% 
                                  filter(TaskID==id) %>% 
                                  select(-c(IU_ID,TaskID))))
+
   rownames(output$data) = prevalence_map[[t]]$data$IU_ID[prevalence_map[[t]]$data$TaskID==id]
   return(output)
   
 })
 
 # load prior
-source(paste0("../run-sch/sch_prior.R")) 
+source(paste0("sch_prior.R")) 
 prior = prior_mvn
 
 # Algorithm parameters
 amis_params<-default_amis_params()
-amis_params$max_iters=2
+amis_params$max_iters=50
 amis_params$n_samples=500
 amis_params$target_ess =500
 amis_params$sigma=0.0025
@@ -80,14 +83,6 @@ amis_params$boundaries=c(0,1)
 trajectories = c() # save simulated trajectories as code is running
 if (!dir.exists("../trajectories")) {dir.create("../trajectories")}
 save(trajectories,file=paste0("../trajectories/trajectories_",id,"_",species,".Rdata"))
-
-# # test transmission model
-# transmission_model = build_transmission_model(prevalence_map, fixed_parameters, year_indices, num_cores_to_use)
-# seeds = 1:100
-# param = prior$rprior(100)
-# output = transmission_model(seeds, param, length(prevalence_map))
-# plot(y=output[1,],x=c(2002,2013,2022),type="l")
-# for (i in 2:100){lines(y=output[i,],x=c(2002,2013,2022))}
 
 # Run AMIS
 st<-Sys.time()

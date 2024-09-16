@@ -19,6 +19,7 @@ from joblib import Parallel, delayed
 import sch_simulation.helsim_RUN_KK
 
 import sch_simulation.helsim_FUNC_KK.results_processing as results_processing
+import sch_simulation.helsim_FUNC_KK.prevalence_column_names as prevalence_column_names
 
 @dataclass(eq=True, frozen=True)
 class FixedParameters:
@@ -52,7 +53,7 @@ class FixedParameters:
 @dataclass(eq=True, frozen=True)
 class StateSnapshotConfig:
     directory: str = "."
-    name_prefix: str = "final_state"
+    name: str = "final_state"
 
 
 def returnYearlyPrevalenceEstimate(R0, k, seed, fixed_parameters: FixedParameters):
@@ -100,7 +101,7 @@ def extract_relevant_results(
 
     relevant_rows = results["Time"].isin(relevant_years)
     prevalence_for_relevant_years = pd.Series(
-        data=results[relevant_rows][results_processing.OUTPUT_COLUMN_NAME],
+        data=results[relevant_rows][prevalence_column_names.SAC_PREVALENCE],
         index=relevant_years,
         name="Prevalence",
     )
@@ -177,13 +178,11 @@ def run_model_with_parameters(
             os.makedirs(final_state_config.directory)
         final_states = list(map(lambda run_result: run_result[1], run_results))
         print("Saving pickle files")
-        for index, final_state in enumerate(final_states):
-            with open(
-                f"{final_state_config.directory}/{final_state_config.name_prefix}_{index}.pickle",
+        with open(
+                f"{final_state_config.directory}/{final_state_config.name}.p",
                 "wb",
             ) as pickle_file:
-                pickle.dump(final_state, pickle_file)
-
+                pickle.dump(final_states, pickle_file)
     os.remove(fixed_parameters.coverage_text_file_storage_name)
 
     return results_np_array

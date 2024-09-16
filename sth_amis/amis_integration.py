@@ -88,8 +88,8 @@ def returnYearlyPrevalenceEstimate(R0, k, seed, fixed_parameters: FixedParameter
 
     # do a single simulation
     numReps = 1
-    PrevalenceEstimate = results_processing.getPrevalenceWholePop(
-        output, params, numReps, params.Unfertilized, fixed_parameters.survey_type, 1
+    PrevalenceEstimate = results_processing.getPrevalence(
+        output, params, numReps, params.Unfertilized
     )
     return PrevalenceEstimate, SD
 

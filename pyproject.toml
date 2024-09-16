@@ -18,9 +18,7 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 
-dependencies = [
-    "sch_simulation @ git+https://github.com/NTD-Modelling-Consortium/ntd-model-sch.git@cloud-fitting",
-]
+dependencies = []
 
 requires-python = ">= 3.9"
 

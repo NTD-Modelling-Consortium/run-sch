@@ -4,8 +4,8 @@ id = as.numeric(Sys.getenv("SLURM_ARRAY_TASK_ID"))
 # for testing:
 #id = 1
 
-# should be "haematobium", "mansoni"
-species = "haematobium"
+# should be "haematobium", "mansoni_high_burden", "mansoni_low_burden"
+species = "mansoni_low_burden"
 task = "fitting"
 
 library(dplyr)

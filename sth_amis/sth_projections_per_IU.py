@@ -170,7 +170,7 @@ def returnNTDMCOutputs(
     This is the section which needs the most editing for each IU
 """
 
-pathCountry = "~/NTDs/STH/post_AMIS_analysis/table_iu_idx_hookworm.csv"  # same for all species. this is just to get country code
+pathCountry = "../Maps-STH/table_iu_idx_hookworm.csv"  # same for all species. this is just to get country code
 df_IU_country = pd.read_csv(pathCountry)
 iu = df_IU_country["IU_CODE"].values[int(IU_SLURM)]
 country = df_IU_country["country"].values[int(IU_SLURM)]
@@ -194,13 +194,13 @@ print(species_prefix)
 if species == "trichuris":
     print("Making projections for trichuris for IU " + str(iu).zfill(5) + "...")
     coverageFileName = (
-        "endgame_inputs/InputMDA_MTP_projections_trichuris_" + str(iu) + ".xlsx"
+        "endgame_inputs_STH/InputMDA_MTP_projections_trichuris_" + str(iu) + ".xlsx"
     )
 else:
     print(
         "Making projections for " + str(species) + " for IU " + str(iu).zfill(5) + "..."
     )
-    coverageFileName = "endgame_inputs/InputMDA_MTP_projections_" + str(iu) + ".xlsx"
+    coverageFileName = "endgame_inputs_STH/InputMDA_MTP_projections_" + str(iu) + ".xlsx"
 
 """
     Change to whatever demography was used to run the fitting
@@ -226,7 +226,7 @@ startYear = 1985
     file name for IU specific parameters
 """
 RkFilePath = (
-    "~/NTDs/STH/post_AMIS_analysis/InputPars_MTP_"
+    "../post_AMIS_analysis/InputPars_MTP_"
     + str(species)
     + "/InputPars_MTP_"
     + str(iu)

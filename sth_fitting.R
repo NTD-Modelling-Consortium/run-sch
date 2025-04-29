@@ -34,8 +34,8 @@ fixed_parameters <- sch_simulation$FixedParameters(
     number_hosts = 500L,
     # no intervention
     coverage_file_name = ifelse(species=="trichuris",
-                                paste0("endgame_inputs/InputMDA_MTP_trichuris_",id,".xlsx"),
-                                paste0("endgame_inputs/InputMDA_MTP_",id,".xlsx")),
+                                paste0("endgame_inputs_STH/InputMDA_MTP_trichuris_",id,".xlsx"),
+                                paste0("endgame_inputs_STH/InputMDA_MTP_",id,".xlsx")),
     demography_name = "UgandaRural",
     # cset the survey type to Kato Katz with duplicate slide
     survey_type = "KK2",
@@ -63,7 +63,7 @@ fixed_parameters <- sch_simulation$FixedParameters(
 year_indices <- c(16L,29L,34L)
 
 # Load prevalence map and filter rows for TaskID == id
-load(paste0("../Maps/",species,"_maps.rds"))
+load(paste0("../Maps-STH/",species,"_maps.rds"))
 prevalence_map = get(paste0(species,"_map_allyears"))
 prevalence_map = lapply(1:length(prevalence_map), function(t){
   output=list(data = as.matrix(prevalence_map[[t]]$data %>% 
@@ -81,7 +81,7 @@ prior = Prior
 
 # Algorithm parameters
 amis_params<-default_amis_params()
-amis_params$max_iters=15 #
+amis_params$max_iters=50
 amis_params$n_samples=1000
 amis_params$target_ess=500
 amis_params$sigma=0.0025

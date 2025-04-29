@@ -33,7 +33,7 @@ fixed_parameters <- sch_simulation$FixedParameters(
     number_hosts = 500L,
     # no intervention
     coverage_file_name = ifelse(species == "haematobium",
-                                paste0("endgame_inputs/InputMDA_MTP_",id,".xlsx"),
+                                paste0("endgame_inputs_haema/InputMDA_MTP_",id,".xlsx"),
                                 paste0("endgame_inputs_mansoni/InputMDA_MTP_",id,".xlsx")),
     demography_name = "UgandaRural",
     # cset the survey type to Kato Katz with duplicate slide
@@ -54,10 +54,10 @@ fixed_parameters <- sch_simulation$FixedParameters(
 # Load prevalence map and filter rows for TaskID == id
 year_indices <- c(18L,29L,38L) # 2000, 2013, 2022 (end of year in model)
 if (species=="haematobium"){
-  load(paste0("../Maps/haematobium_maps.rds"))
+  load(paste0("../Maps-SCH/haematobium_maps.rds"))
   prevalence_map = get(paste0("haematobium_maps"))
 } else {
-  load(paste0("../Maps/mansoni_maps.rds"))
+  load(paste0("../Maps-SCH/mansoni_maps.rds"))
   prevalence_map = get(paste0("mansoni_maps"))
 
 }

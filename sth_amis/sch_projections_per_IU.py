@@ -139,13 +139,13 @@ def returnNTDMCOutputs(params, results, ageBand, PopType, startYear, prevThresho
 
 if species == "haematobium":
     species_prefix = "Haema_"
-    pathCountry = '../Maps/table_iu_idx_haematobium.csv'
+    pathCountry = '../Maps-SCH/table_iu_idx_haematobium.csv'
 if species == "mansoni_high_burden":
     species_prefix = "Man_High_"
-    pathCountry = '../Maps/table_iu_idx_mansoni.csv'
+    pathCountry = '../Maps-SCH/table_iu_idx_mansoni.csv'
 if species == "mansoni_low_burden":
     species_prefix = "Man_Low_"    
-    pathCountry = '../Maps/table_iu_idx_mansoni.csv'
+    pathCountry = '../Maps-SCH/table_iu_idx_mansoni.csv'
 
 df_IU_country = pd.read_csv(pathCountry)
 iu = df_IU_country['IU_CODE'].values[int(IU_SLURM)]
@@ -162,7 +162,7 @@ print(species_prefix)
 '''
 if species == "haematobium":
     print("Making projections for haematobium for IU " + str(iu).zfill(5) + "...")
-    coverageFileName = 'endgame_inputs/InputMDA_MTP_projections_' + str(iu) + '.xlsx'
+    coverageFileName = 'endgame_inputs_haema/InputMDA_MTP_projections_' + str(iu) + '.xlsx'
 else:
     print("Making projections for " + str(species) + " for IU " + str(iu).zfill(5) + "...")
     coverageFileName = 'endgame_inputs_mansoni/InputMDA_MTP_projections_' + str(iu) + '.xlsx'

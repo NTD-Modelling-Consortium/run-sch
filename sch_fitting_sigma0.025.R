@@ -4,7 +4,7 @@ id = as.numeric(Sys.getenv("SLURM_ARRAY_TASK_ID"))
 # for testing:
 #id = 1
 
-# should be "haematobium", "mansoni"
+# should be "haematobium", "mansoni_low_burden", "mansoni_high_burden"
 species = "haematobium"
 task = "fitting"
 

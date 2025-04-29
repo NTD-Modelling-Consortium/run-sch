@@ -24,7 +24,7 @@ if(length(args) == 1) {
 
 print(paste0('Using ', num_cores_to_use, ' cores'))
 
-reticulate::use_virtualenv("../sth-venv/", required=TRUE)
+reticulate::use_virtualenv("../.venv/", required=TRUE)
 sch_simulation <- get_amis_integration_package()
 reticulate::py_config()
 

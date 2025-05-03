@@ -4,7 +4,7 @@
  if (file.exists('RawDataForPrior.csv')) {
    d<-read.csv('RawDataForPrior.csv')
  } else {
-   d<-read.csv('../RawDataForPrior.csv')
+   d<-read.csv('../run-sch/RawDataForPrior.csv')
  }
  log.likelihood <- function(pars,pos,neg,mu) {
     a<-pars[1]

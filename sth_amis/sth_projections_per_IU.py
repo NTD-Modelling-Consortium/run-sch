@@ -170,7 +170,7 @@ def returnNTDMCOutputs(
     This is the section which needs the most editing for each IU
 """
 
-pathCountry = "../Maps-STH/table_iu_idx_hookworm.csv"  # same for all species. this is just to get country code
+pathCountry = "../Maps-STH/table_iu_idx_STH.csv"  # same for all species. this is just to get country code
 df_IU_country = pd.read_csv(pathCountry)
 iu = df_IU_country["IU_CODE"].values[int(IU_SLURM)]
 country = df_IU_country["country"].values[int(IU_SLURM)]

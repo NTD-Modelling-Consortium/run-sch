@@ -1,12 +1,12 @@
-Scripts used for STH fitting and near term projections 
+Scripts used for STH and SCH fitting and near term projections 
 ================
 
 Notes about SCH: 
 
-- Warning: I adjusted the code to match this repo but it hasn't been tested. 
+- Warning: I adjusted the SCH code to match this repo but it hasn't been tested. 
 - For mansoni: when last ran I did the full set of results (low and high burden) for all IUs and then produced a CSV that said which version to use for each IU (the one with the best ESS) for the projections to 2040. But when redoing should change this to use the model evidence (wasn't available at the time of last runs).
-- SCH also wasn't fitted with importation so the parameter files in `ntd-model-sch/sch_simulation/data/SCH_params` need to be updated if we want to use importation
-
+- SCH also wasn't fitted with importation so the parameter files in `ntd-model-sch/sch_simulation/data/SCH_params` need to be updated if we want to use importation. Importation currently set to 0 for SCH.
+- SCH also currently only using 500 samples per AMIS iteration (compared to 1000 for STH) so this may need to be reviewed
 
 ### Installation
 
@@ -67,15 +67,15 @@ Notes about SCH:
 
 | R script  (see `run-sch/` directory)                           | Corresponding shell script    |
 |:------------------------------------------------------------|:------------------------------|
-| sth_fitting.R                                               | runFit_asca.sh, runFit_hook.sh, runFit_tric.sh  |            |
-| sth_fitting_sigma0.025.R                                    | runFit_asca_sigma0.025.sh, runFit_hook_sigma0.025.sh, runFit_tric_sigma0.025.sh             |
-| sch_fitting.R                                               | runFit_Haematobium.sh, runFit_MansoniHigh.sh, runFit_MansoniLow.sh  |            |
-| sch_fitting_sigma0.025.R                                    | runFit_Haematobium_sigma0.025.sh, runFit_MansoniHigh_sigma0.025.sh, runFit_MansoniLow_sigma0.025.sh               |
+| sth_fitting.R                                               | runFit_asca.sh, runFit_hook.sh, runFit_tric.sh  |      
+| sch_fitting.R                                               | runFit_Haematobium.sh, runFit_MansoniHigh.sh, runFit_MansoniLow.sh  |                  
 | find_lowESS_ids.R                                           | runFindLowESS.sh         |
+| sth_fitting_sigma0.025.R                                    | runFit_asca_sigma0.025.sh, runFit_hook_sigma0.025.sh, runFit_tric_sigma0.025.sh             |
+| sch_fitting_sigma0.025.R                                    | runFit_Haematobium_sigma0.025.sh, runFit_MansoniHigh_sigma0.025.sh, runFit_MansoniLow_sigma0.025.sh               |
 
-
+- Process summary: run fitting with sigma=0.0025 (`{disease}_fitting.R`), gather batch numbers that either failed or have IUs with ESS <200 (`find_lowESS_ids.R`), then run `{disease}_fitting_sigma0.025.R` for the failed/low ESS IUs
 - Before running these, we have to manually set the corresponding `species` in 
-`run-sch/{disease}_fitting.R`, `run-sch/{disease}_fitting_sigma0.025.R` and `find_lowESS_ids.R`
+`{disease}_fitting.R`, `{disease}_fitting_sigma0.025.R` and `find_lowESS_ids.R`
 - You will also need to specify `failed_ids` (i.e. batches that failed during sigma=0.0025 runs) in `find_lowESS_ids.R` (use something like `grep -i "error" <log file names>` to find failed batches)
 - `{disease}_fitting_sigma0.025.R` should be run for batches that: are in `failed_ids` or the output printed to console (or log files if using the shell script) from `find_lowESS_ids.R` (by species). Update `runFit_{species}_sigma0.025.sh` accordingly
 - Note: the failed batches probably contain some IUs that are actually able to be fit, but the fitting failed after these dropped out of the active set, or the fitting timed out, and I didn't have time to go back and refit these
@@ -89,7 +89,6 @@ These are for until the end of 2025, which means 2026.0 in the continuous scale.
 | preprocess_for_projections.R                                | runPreprocessing.sh           |
 | IUsWithInsufficientESS.R                                    | NA                            |     
 
-<br/>
 
 - `preprocess_for_projections.R`: creates the 200 parameter vectors (simulated from the fitted models) used in projections. Reorganises the files with the 200 samples used in projections, so that they are organised in the expected file hierarchy in the cloud.
 - `IUsWithInsufficientESS.R`:  finds IUs that have ESS < 200 (after also trying higher sigma=0.025). 

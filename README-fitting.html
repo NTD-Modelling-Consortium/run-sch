@@ -352,12 +352,12 @@ display: none;
 </div>
 
 
-<div id="scripts-used-for-sth-fitting-and-near-term-projections" class="section level1">
-<h1>Scripts used for STH fitting and near term projections</h1>
+<div id="scripts-used-for-sth-and-sch-fitting-and-near-term-projections" class="section level1">
+<h1>Scripts used for STH and SCH fitting and near term projections</h1>
 <p>Notes about SCH:</p>
 <ul>
-<li>Warning: I adjusted the code to match this repo but it hasn’t been
-tested.</li>
+<li>Warning: I adjusted the SCH code to match this repo but it hasn’t
+been tested.</li>
 <li>For mansoni: when last ran I did the full set of results (low and
 high burden) for all IUs and then produced a CSV that said which version
 to use for each IU (the one with the best ESS) for the projections to
@@ -365,7 +365,10 @@ to use for each IU (the one with the best ESS) for the projections to
 (wasn’t available at the time of last runs).</li>
 <li>SCH also wasn’t fitted with importation so the parameter files in
 <code>ntd-model-sch/sch_simulation/data/SCH_params</code> need to be
-updated if we want to use importation</li>
+updated if we want to use importation. Importation currently set to 0
+for SCH.</li>
+<li>SCH also currently only using 500 samples per AMIS iteration
+(compared to 1000 for STH) so this may need to be reviewed</li>
 </ul>
 <div id="installation" class="section level3">
 <h3>Installation</h3>
@@ -486,30 +489,35 @@ scripts</li>
 <td align="left">runFit_asca.sh, runFit_hook.sh, runFit_tric.sh</td>
 </tr>
 <tr class="even">
-<td align="left">sth_fitting_sigma0.025.R</td>
-<td align="left">runFit_asca_sigma0.025.sh, runFit_hook_sigma0.025.sh,
-runFit_tric_sigma0.025.sh</td>
-</tr>
-<tr class="odd">
 <td align="left">sch_fitting.R</td>
 <td align="left">runFit_Haematobium.sh, runFit_MansoniHigh.sh,
 runFit_MansoniLow.sh</td>
-</tr>
-<tr class="even">
-<td align="left">sch_fitting_sigma0.025.R</td>
-<td align="left">runFit_Haematobium_sigma0.025.sh,
-runFit_MansoniHigh_sigma0.025.sh, runFit_MansoniLow_sigma0.025.sh</td>
 </tr>
 <tr class="odd">
 <td align="left">find_lowESS_ids.R</td>
 <td align="left">runFindLowESS.sh</td>
 </tr>
+<tr class="even">
+<td align="left">sth_fitting_sigma0.025.R</td>
+<td align="left">runFit_asca_sigma0.025.sh, runFit_hook_sigma0.025.sh,
+runFit_tric_sigma0.025.sh</td>
+</tr>
+<tr class="odd">
+<td align="left">sch_fitting_sigma0.025.R</td>
+<td align="left">runFit_Haematobium_sigma0.025.sh,
+runFit_MansoniHigh_sigma0.025.sh, runFit_MansoniLow_sigma0.025.sh</td>
+</tr>
 </tbody>
 </table>
 <ul>
+<li>Process summary: run fitting with sigma=0.0025
+(<code>{disease}_fitting.R</code>), gather batch numbers that either
+failed or have IUs with ESS &lt;200 (<code>find_lowESS_ids.R</code>),
+then run <code>{disease}_fitting_sigma0.025.R</code> for the failed/low
+ESS IUs</li>
 <li>Before running these, we have to manually set the corresponding
-<code>species</code> in <code>run-sch/{disease}_fitting.R</code>,
-<code>run-sch/{disease}_fitting_sigma0.025.R</code> and
+<code>species</code> in <code>{disease}_fitting.R</code>,
+<code>{disease}_fitting_sigma0.025.R</code> and
 <code>find_lowESS_ids.R</code></li>
 <li>You will also need to specify <code>failed_ids</code> (i.e. batches
 that failed during sigma=0.0025 runs) in <code>find_lowESS_ids.R</code>
@@ -553,7 +561,6 @@ directory)</th>
 </tr>
 </tbody>
 </table>
-<p><br /></p>
 <ul>
 <li><p><code>preprocess_for_projections.R</code>: creates the 200
 parameter vectors (simulated from the fitted models) used in

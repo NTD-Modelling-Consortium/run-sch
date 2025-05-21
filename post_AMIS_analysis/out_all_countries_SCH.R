@@ -118,16 +118,24 @@ for (id in ids_sample_pars){
 
   ess = amis_output$ess
   iu_names <- rownames(amis_output$prevalence_map[[1]]$data)
-  iu_names_lt200 = iu_names[ess<200]
-  iu_names_ge200 = iu_names[!ess<200]
+
+  if(!id %in% failed_ids){
+    iu_names_lt200 = iu_names[ess<200]
+    iu_names_ge200 = iu_names[!ess<200]
+  } else {
+    iu_names_lt200 = iu_names # if failed when sigma=0.0025 then use sigma=0.025 for all IUs
+  }
+
   ess_iu = data.frame(IU_CODE = iu_names, ess = rep(NA,length(iu_names)))
 
   ius_requiring_sigma0.025 = c(ius_requiring_sigma0.025,iu_names_lt200)
 
   # get ESS for ius in iu_names_ge200
-  load(paste0("../AMIS_output/",species,"_amis_output",id,".Rdata")) # loads amis_output
-  ess_iu$ess[which(iu_names %in% iu_names_ge200)] = amis_output$ess[which(iu_names %in% iu_names_ge200)]
-
+  if (file.exists(paste0("../../AMIS_output/",species,"_amis_output",id,".Rdata"))) {
+    load(paste0("../AMIS_output/",species,"_amis_output",id,".Rdata")) # loads amis_output
+    ess_iu$ess[which(iu_names %in% iu_names_ge200)] = amis_output$ess[which(iu_names %in% iu_names_ge200)]
+  }
+ 
   # get ESS for ius in iu_names_lt200
   if (file.exists(paste0("../AMIS_output/",species,"_amis_output",id,"_sigma0.025.Rdata"))) {
     load(paste0("../AMIS_output/",species,"_amis_output",id,"_sigma0.025.Rdata")) # loads amis_output
@@ -138,7 +146,7 @@ for (id in ids_sample_pars){
 }
 ess_all_iu$ess = as.numeric(ess_all_iu$ess)
 # reorder to align with table_country (should already be the same but just incase...)
-ess_all_iu = ess_all_iu[which(ess_all_iu$IU_CODE == table_country$IU_CODE),]
+ess_all_iu = ess_all_iu[sapply(1:nrow(table_country), function(j) which(ess_all_iu$IU_CODE == table_country$IU_CODE[j])),]
 ixd_ord_traj_plots <- order(ess_all_iu[,"ess"])
 
 source(paste0("sch_prior.R")) 
@@ -215,7 +223,7 @@ prev3 <- (cbind(mnprev3, lwrprev3[,2], uprprev3[,2]))
 colnames(prev3) <- c("IU_ID", "prev3", "prev3lwr", "prev3upr")
 
 df <- cbind(R0, k[,2:4], prev1[,2:4],prev2[,2:4],prev3[,2:4]) #%>% 
-df <- df[order(df$k),]
+df <- df[order(df$prev1),]
 df$IUN <- seq(1,nrow(df))
 
 
@@ -461,8 +469,7 @@ if(plot_trajectories){
     load(paste0("../trajectories/trajectories_",id,"_",species,".Rdata")) # load 'trajectories'
     load(paste0("../AMIS_output/",species,"_amis_output",id,".Rdata")) # loads amis_output
   }
-  prevalence_map <- amis_output$prevalence_map
-  
+
   plot(x=all_years, y=trajectories[sampled_params_iu$seed[1],],type="l", ylim=c(0,1), xlim=range(all_years) + 2*c(-1,1),
         main=paste0(iu, "\n ESS ",round(amis_output$ess[which(names(amis_output$ess)==iu)],digits=2)), xlab="year", ylab="prevalence",xaxt="n",yaxt="n")
   axis(1, at=all_years)
@@ -472,7 +479,10 @@ if(plot_trajectories){
   for(i in seq_along(sub_samp)){
     lines(x=all_years, y=trajectories[sub_samp[i],])
   }
-  
+
+  prevalence_map <- amis_output$prevalence_map
+  j = which(rownames(prevalence_map[[year_ind]]$data)==iu)
+
   for (year_ind in 1:length(prevalence_map)){
     year = map_years[year_ind]
     if (length(which(!is.na(prevalence_map[[year_ind]]$data[j,]))) > 0){
@@ -512,6 +522,7 @@ for (l in ixd_ord_traj_plots){
   }
   
   prevalence_map <- amis_output$prevalence_map
+  j = which(rownames(prevalence_map[[year_ind]]$data)==iu)
 
     for (year_ind in 1:length(prevalence_map)){
     year = map_years[year_ind]

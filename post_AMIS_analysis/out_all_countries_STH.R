@@ -118,16 +118,24 @@ for (id in ids_sample_pars){
 
   ess = amis_output$ess
   iu_names <- rownames(amis_output$prevalence_map[[1]]$data)
-  iu_names_lt200 = iu_names[ess<200]
-  iu_names_ge200 = iu_names[!ess<200]
+
+  if(!id %in% failed_ids){
+    iu_names_lt200 = iu_names[ess<200]
+    iu_names_ge200 = iu_names[!ess<200]
+  } else {
+    iu_names_lt200 = iu_names # if failed when sigma=0.0025 then use sigma=0.025 for all IUs
+  }
+
   ess_iu = data.frame(IU_CODE = iu_names, ess = rep(NA,length(iu_names)))
 
   ius_requiring_sigma0.025 = c(ius_requiring_sigma0.025,iu_names_lt200)
 
   # get ESS for ius in iu_names_ge200
-  load(paste0("../AMIS_output/",species,"_amis_output",id,".Rdata")) # loads amis_output
-  ess_iu$ess[which(iu_names %in% iu_names_ge200)] = amis_output$ess[which(iu_names %in% iu_names_ge200)]
-
+  if (file.exists(paste0("../../AMIS_output/",species,"_amis_output",id,".Rdata"))) {
+    load(paste0("../AMIS_output/",species,"_amis_output",id,".Rdata")) # loads amis_output
+    ess_iu$ess[which(iu_names %in% iu_names_ge200)] = amis_output$ess[which(iu_names %in% iu_names_ge200)]
+  }
+  
   # get ESS for ius in iu_names_lt200
   if (file.exists(paste0("../AMIS_output/",species,"_amis_output",id,"_sigma0.025.Rdata"))) {
     load(paste0("../AMIS_output/",species,"_amis_output",id,"_sigma0.025.Rdata")) # loads amis_output
@@ -137,8 +145,9 @@ for (id in ids_sample_pars){
   ess_all_iu <- rbind(ess_all_iu,ess_iu)
 }
 ess_all_iu$ess = as.numeric(ess_all_iu$ess)
+ess_all_iu$IU_CODE = as.numeric(ess_all_iu$IU_CODE)
 # reorder to align with table_country (should already be the same but just incase...)
-ess_all_iu = ess_all_iu[which(ess_all_iu$IU_CODE == table_country$IU_CODE),]
+ess_all_iu = ess_all_iu[sapply(1:nrow(table_country), function(j) which(ess_all_iu$IU_CODE == table_country$IU_CODE[j])),]
 ixd_ord_traj_plots <- order(ess_all_iu[,"ess"])
 
 
@@ -217,7 +226,7 @@ prev3 <- (cbind(mnprev3, lwrprev3[,2], uprprev3[,2]))
 colnames(prev3) <- c("IU_ID", "prev3", "prev3lwr", "prev3upr")
 
 df <- cbind(R0, k[,2:4], prev1[,2:4],prev2[,2:4],prev3[,2:4]) #%>% 
-df <- df[order(df$k),]
+df <- df[order(df$prev1),]
 df$IUN <- seq(1,nrow(df))
 
 

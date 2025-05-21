@@ -14,7 +14,7 @@ library(dplyr)
 library(AMISforInfectiousDiseases)
 
 # assuming working directory is ntd-model-sch
-source("../run-sch/R/amis_integration.R")
+source("../run-sch/R/amis_integration_sigma0.025.R")
 
 args <- commandArgs(trailingOnly=TRUE)
 num_cores_to_use <- parallel::detectCores()
@@ -40,7 +40,7 @@ fixed_parameters <- sch_simulation$FixedParameters(
     # cset the survey type to Kato Katz with duplicate slide
     survey_type = "KK2",
     parameter_file_name = paste0("STH_params/",species,"_params.txt"),
-    coverage_text_file_storage_name = paste0("Man_MDA_vacc_",species,"_",id,".txt"),
+    coverage_text_file_storage_name = paste0("Man_MDA_vacc_",species,"_",id,"_sigma0.025.txt"),
     # the following number dictates the number of events (e.g. worm deaths)
     # we allow to happen before updating other parts of the model
     # the higher this number the faster the simulation
@@ -84,7 +84,7 @@ amis_params<-default_amis_params()
 amis_params$max_iters=50
 amis_params$n_samples=1000
 amis_params$target_ess=500
-amis_params$sigma=0.0025
+amis_params$sigma=0.025
 amis_params$boundaries=c(-Inf,Inf)
 amis_params$boundaries_param = matrix(c(R_lb,k_lb,R_ub,k_ub),ncol=2)
 
@@ -92,7 +92,7 @@ amis_params$boundaries_param = matrix(c(R_lb,k_lb,R_ub,k_ub),ncol=2)
 # commented out to pass Github tests (maybe this is bad practice...)
 trajectories <- c() # save simulated trajectories as code is running
 if (!dir.exists("../trajectories")) {dir.create("../trajectories")}
-save(trajectories,file=paste0("../trajectories/trajectories_",id,"_",species,".Rdata"))
+save(trajectories,file=paste0("../trajectories/trajectories_",id,"_",species,"_sigma0.025.Rdata"))
 
 # Run AMIS
 st<-Sys.time()
@@ -106,7 +106,7 @@ amis_output <- AMISforInfectiousDiseases::amis(
 en<-Sys.time()
 dur_amis<-as.numeric(difftime(en,st,units="mins"))
 if (!dir.exists("../AMIS_output")) {dir.create("../AMIS_output")}
-save(amis_output,file=paste0("../AMIS_output/",species,"_amis_output",id,".Rdata"))
+save(amis_output,file=paste0("../AMIS_output/",species,"_amis_output",id,"_sigma0.025.Rdata"))
 
 print(amis_output)
 summary(amis_output)
@@ -118,7 +118,7 @@ ess<-amis_output$ess
 n_success<-length(which(ess>=amis_params[["target_ess"]]))
 failures<-which(ess<amis_params[["target_ess"]])
 n_failure<-length(failures)
-if (n_failure>0) {cat(paste(failures,id,ess[failures]),file = paste0("../ESS_NOT_REACHED_",species,".txt"),sep = "\n", append = TRUE)}
-if (!file.exists(paste0("../summary_",species,".csv"))) {cat("ID,n_failure,n_success,n_sim,min_ess,duration_amis,durarion_subsampling\n",file=paste0("../summary_",species,".csv"))}
-cat(id,n_failure,n_success,length(amis_output$seeds),min(ess),dur_amis,NA,"\n",sep=",",file=paste0("../summary_",species,".csv"),append=TRUE)
+if (n_failure>0) {cat(paste(failures,id,ess[failures]),file = paste0("../ESS_NOT_REACHED_",species,"_sigma0.025.txt"),sep = "\n", append = TRUE)}
+if (!file.exists(paste0("../summary_",species,"_sigma0.025.csv"))) {cat("ID,n_failure,n_success,n_sim,min_ess,duration_amis,durarion_subsampling\n",file=paste0("../summary_",species,"_sigma0.025.csv"))}
+cat(id,n_failure,n_success,length(amis_output$seeds),min(ess),dur_amis,NA,"\n",sep=",",file=paste0("../summary_",species,"_sigma0.025.csv"),append=TRUE)
 

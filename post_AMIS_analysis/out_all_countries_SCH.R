@@ -482,7 +482,7 @@ if(plot_trajectories){
   }
 
   prevalence_map <- amis_output$prevalence_map
-  j = which(rownames(prevalence_map[[year_ind]]$data)==iu)
+  j = which(rownames(prevalence_map[[1]]$data)==iu)
 
   for (year_ind in 1:length(prevalence_map)){
     year = map_years[year_ind]
@@ -523,7 +523,7 @@ for (l in ixd_ord_traj_plots){
   }
   
   prevalence_map <- amis_output$prevalence_map
-  j = which(rownames(prevalence_map[[year_ind]]$data)==iu)
+  j = which(rownames(prevalence_map[[1]]$data)==iu)
 
     for (year_ind in 1:length(prevalence_map)){
     year = map_years[year_ind]

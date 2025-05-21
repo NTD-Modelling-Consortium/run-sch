@@ -2,6 +2,7 @@ Scripts used for STH fitting and near term projections
 ================
 
 Notes about SCH: 
+
 - Warning: I adjusted the code to match this repo but it hasn't been tested. 
 - For mansoni: when last ran I did the full set of results (low and high burden) for all IUs and then produced a CSV that said which version to use for each IU (the one with the best ESS) for the projections to 2040. But when redoing should change this to use the model evidence (wasn't available at the time of last runs).
 - SCH also wasn't fitted with importation so the parameter files in `ntd-model-sch/sch_simulation/data/SCH_params` need to be updated if we want to use importation
@@ -68,15 +69,15 @@ Notes about SCH:
 |:------------------------------------------------------------|:------------------------------|
 | sth_fitting.R                                               | runFit_asca.sh, runFit_hook.sh, runFit_tric.sh  |            |
 | sth_fitting_sigma0.025.R                                    | runFit_asca_sigma0.025.sh, runFit_hook_sigma0.025.sh, runFit_tric_sigma0.025.sh             |
-| sch_fitting.R                                               | runFit_asca.sh, runFit_hook.sh, runFit_tric.sh  |            |
-| sch_fitting_sigma0.025.R                                    | runFit_asca_sigma0.025.sh, runFit_hook_sigma0.025.sh, runFit_tric_sigma0.025.sh             |
+| sch_fitting.R                                               | runFit_Haematobium.sh, runFit_MansoniHigh.sh, runFit_MansoniLow.sh  |            |
+| sch_fitting_sigma0.025.R                                    | runFit_Haematobium_sigma0.025.sh, runFit_MansoniHigh_sigma0.025.sh, runFit_MansoniLow_sigma0.025.sh               |
 | find_lowESS_ids.R                                           | runFindLowESS.sh         |
 
 
 - Before running these, we have to manually set the corresponding `species` in 
-`run-sch/sth_fitting.R`, `run-sch/sth_fitting_sigma0.025.R` and `find_lowESS_ids.R`
+`run-sch/{disease}_fitting.R`, `run-sch/{disease}_fitting_sigma0.025.R` and `find_lowESS_ids.R`
 - You will also need to specify `failed_ids` (i.e. batches that failed during sigma=0.0025 runs) in `find_lowESS_ids.R` (use something like `grep -i "error" <log file names>` to find failed batches)
-- `sth_fitting_sigma0.025.R` should be run for batches that: are in `failed_ids` or the output printed to console (or log files if using the shell script) from `find_lowESS_ids.R` (by species)
+- `{disease}_fitting_sigma0.025.R` should be run for batches that: are in `failed_ids` or the output printed to console (or log files if using the shell script) from `find_lowESS_ids.R` (by species). Update `runFit_{species}_sigma0.025.sh` accordingly
 - Note: the failed batches probably contain some IUs that are actually able to be fit, but the fitting failed after these dropped out of the active set, or the fitting timed out, and I didn't have time to go back and refit these
 
 ### Prepare for near term projections
@@ -86,36 +87,36 @@ These are for until the end of 2025, which means 2026.0 in the continuous scale.
 | R script  (see `post_AMIS_analysis/` directory)             | Corresponding shell script    |
 |:------------------------------------------------------------|:------------------------------|
 | preprocess_for_projections.R                                | runPreprocessing.sh           |
+| IUsWithInsufficientESS.R                                    | NA                            |     
 
 <br/>
-**preprocess_for_projections.R**: creates the 200 parameter vectors (simulated from the fitted 
-models) used in projections. Reorganises the files with the 200 samples used in projections, 
-so that they are organised in the expected file hierarchy in the cloud.
+
+- `preprocess_for_projections.R`: creates the 200 parameter vectors (simulated from the fitted models) used in projections. Reorganises the files with the 200 samples used in projections, so that they are organised in the expected file hierarchy in the cloud.
+- `IUsWithInsufficientESS.R`:  finds IUs that have ESS < 200 (after also trying higher sigma=0.025). 
 
 - Before running `runPreprocessing.sh`, we have to manually choose `species` in `post_AMIS_analysis/preprocessing_for_projections.R` 
-- You also need to specify in `post_AMIS_analysis/preprocessing_for_projections.R` the batches that failed **when sigma=0.0025 and sigma=0.025** (`failed_ids` and `failed_ids_sigma0.025` respectively)
-- Note this relies on outputs from `Maps/prepare_histories_projections*` files
+- You also need to specify in `preprocessing_for_projections.R` and `IUsWithInsufficientESS.R` the batches that failed **when sigma=0.0025 and sigma=0.025** (`failed_ids` and `failed_ids_sigma0.025` respectively)
+- Note this relies on outputs from `Maps-{disease}/prepare_histories_projections*` 
 
 ### Plots for the model fits
 
 | R script  (see `post_AMIS_analysis/` directory)             | Corresponding shell script    |
 |:------------------------------------------------------------|:------------------------------|
 | out_all_countries_STH.R                                         | NA      |
-| IUsWithInsufficientESS.R                                    | NA                            |     
+| out_all_countries_SCH.R                                         | NA      |
 
 
 <br/>
-- **out_all_countries_STH.R**:  saves plots in and summary maps for STH
-- **IUsWithInsufficientESS.R**:  finds IUs that have ESS < 200 (after also trying higher sigma=0.025). 
-- In both of these files you also need to specify the batches that failed **when sigma=0.0025 and sigma=0.025** (`failed_ids` and `failed_ids_sigma0.025` respectively)
+- `out_all_countries_STH.R` and `out_all_countries_SCH.R`:  saves plots in and summary maps for STH and SCH respectively
+- In both of these files, for each species you also need to specify the batches that failed **when sigma=0.0025 and sigma=0.025** (`failed_ids` and `failed_ids_sigma0.025` respectively)
 
 ### Running the near term projections
 
 | Python script  (see `run-sch/sth_amis/` directory)      | Corresponding shell script    |
 |:--------------------------------------------------------|:------------------------------|
-| sth_projections_per_IU.py                               | runProj_STH.sh                |
-| sch_projections_per_IU.py                               | runProj_SCH.sh                |
+| sth_projections_per_IU.py                               | runProj_asca.sh,   runProj_hook.sh, runProj_tric.sh             |
+| sch_projections_per_IU.py                               | runProj_Haematobium.sh  runProj_MansoniHigh.sh   runProj_MansoniLow.sh                |
 
 - There can be a maximum number of tasks that can be submitted at a time on HPC clusters. 
 
-- Before running **runProj_STH.sh**, we have to manually choose `species` in `run-sch/sth_amis/sth_projections_per_IU.py`. Similiarly for **runProj_SCH.sh**
+- Before running `runProj_{species}.sh`, we have to manually choose `species` in `run-sch/sth_amis/{disease}_projections_per_IU.py`. 

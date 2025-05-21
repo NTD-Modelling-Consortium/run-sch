@@ -71,8 +71,14 @@ for(id in ids_sample_pars){
 
   ess = amis_output$ess
   iu_names <- rownames(amis_output$prevalence_map[[1]]$data)
-  iu_names_lt200 = iu_names[ess<200]
-  iu_names_ge200 = iu_names[!ess<200]
+
+  if(!id %in% failed_ids){
+    iu_names_lt200 = iu_names[ess<200]
+    iu_names_ge200 = iu_names[!ess<200]
+  } else {
+    iu_names_lt200 = iu_names # if failed when sigma=0.0025 then use sigma=0.025 for all IUs
+    iu_names_ge200 = NULL
+  }
 
   #### Sample draws from the posterior
   num_sub_samples_posterior <- 200

@@ -124,6 +124,7 @@ for (id in ids_sample_pars){
     iu_names_ge200 = iu_names[!ess<200]
   } else {
     iu_names_lt200 = iu_names # if failed when sigma=0.0025 then use sigma=0.025 for all IUs
+    iu_names_ge200 = NULL
   }
 
   ess_iu = data.frame(IU_CODE = iu_names, ess = rep(NA,length(iu_names)))

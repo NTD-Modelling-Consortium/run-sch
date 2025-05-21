@@ -7,6 +7,7 @@ import time
 import os
 from multiprocessing import Pool
 
+# should be haematobium, mansoni_low_burden or mansoni_high_burden
 species = "haematobium"
 
 IU_SLURM = os.getenv("SLURM_ARRAY_TASK_ID")

@@ -7,7 +7,7 @@ id = as.numeric(Sys.getenv("SLURM_ARRAY_TASK_ID"))
 #num_cores_to_use <- 8
 
 # should be "ascaris", "hookworm" or "trichuris"
-species = "ascaris"
+species = "trichuris"
 task = "fitting"
 
 library(dplyr)

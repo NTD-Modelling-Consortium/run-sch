@@ -1,0 +1,6 @@
+Modules required
+- R/4.3.2-gfbf-2023a
+- Python/3.11.3-GCCcore-12.3.0 
+
+To install AMISforInfectiousDiseases on Oxford cluster:
+- first need to install specific versions of MASS (7.3.60) and Hmisc (5.1.3) before installing package from Github

@@ -1,0 +1,37 @@
+Pipeline from MDA histories to python STH model
+
+- How the generate MDA files to be able to input treatment variables (year, target population, drug, coverage)
+    - Understanding format and how it interacts with the transmission model was a challenge
+    - To define burn in: year of baseline map minus # years burn in. Add a column with this year to the xl spreadsheet
+    - Years in ‘Platform Coverage’ and ‘MarketShare’ tabs need to be the same
+    - Coverage bins s: 
+	- 0-15% = 0% (set to be roughly consistent with LF)
+	- 15-75% = 15% (set to be roughly consistent with LF)
+	- 75+% = 75% (threshold for effective MDA)
+    - Target population: 
+	- LF: SAC/Adults (5-100)
+	- STH: PreSAC (0-5) and SAC (5-15); excluded Total category in ESPEN data as this is a sum of PreSAC and SAC
+    - No MDA still needs a value in the spreadsheet: 
+	- set to 1e-11 
+	- target population set to SAC/Adults (5-100) for dummy (not all age groups need to appear)
+    - MarketShare tab needs both drug names even if only one is used
+    - Drug names need to be "Old Product B (SOC)” and “New Product A”. Drug efficacy needs to be manually entered in the relevant params.txt files
+    - Including LF treatments (both pre and post-2013): how this should be carried out in the model (add 0.5 to the year) 
+    - Column names need to be numeric so when exporting, make column names the first row in the data frame
+- How to treat drug combinations: 
+    - ALBx2 = ALB at year+0.01 and year+0.5 (this only occurred in LF histories)
+    - For ascaris + hookworm: ALB = c(ALB,ALB+DEC,ALB+IVM,IDA); ALB/MBD = c(ALB/MBD,PZQ+ALB/MBD)
+    - For trichuris: IDA and ALB+IVM; everything else
+    - ALB and MBD drug efficacy for trichuris was merged since the model doesn't allow for > 2 unique efficacies.
+    - nHosts=500; deliberately underestimating population size to have more stochasticity
+
+
+
+Preparing maps
+
+- Years to fit: 2000,2013,2018 (precontrol, start of recorded MDA, last map)
+- Understanding what the columns in the maps files represented (means and lower bounds are of the distribution on the prevalence scale 
+    - Didn’t use mean to reconstruct the distribution on the real line
+    - Used the CDF function on the upper and lower bounds instead
+    - Evandro updated the AMIS package to be able to give the parameters of the likelihood, rather than requiring samples from the likelihood
+- For IUs with map samples but no MDA history: include with no MDA

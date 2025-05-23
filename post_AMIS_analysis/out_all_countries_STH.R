@@ -65,8 +65,10 @@ map_years <- c(2000, 2013, 2018)  # years in the map samples amis fitted to
 all_years <- 2000:2018
 
 # Look up table that links each IU to its index in the corresponding batch
-if(species %in% c("ascaris","hookworm","trichuris")){
-  table_iu_idx <- read.csv("../Maps-STH/table_iu_idx_STH.csv") # same for all species as jsut want country codes
+if(species %in% c("ascaris","hookworm")){
+  table_iu_idx <- read.csv("../Maps-STH/table_iu_idx_STH.csv") 
+} else {
+  table_iu_idx <- read.csv("../Maps-STH/table_iu_idx_trichuris.csv") 
 }
 
 dim(table_iu_idx)
@@ -146,7 +148,7 @@ for (id in ids_sample_pars){
 }
 ess_all_iu$ess = as.numeric(ess_all_iu$ess)
 ess_all_iu$IU_CODE = as.numeric(ess_all_iu$IU_CODE)
-# reorder to align with table_country (should already be the same but just incase...)
+# reorder to align with table_country 
 ess_all_iu = ess_all_iu[sapply(1:nrow(table_country), function(j) which(ess_all_iu$IU_CODE == table_country$IU_CODE[j])),]
 ixd_ord_traj_plots <- order(ess_all_iu[,"ess"])
 

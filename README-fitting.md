@@ -1,6 +1,11 @@
 Scripts used for STH and SCH fitting and near term projections 
 ================
 
+General note:
+
+- Currently in most of the running scripts, the species needs to be manually defined. I'd recommend changing this by inputting the species as an environment variable when running the scripts to avoid this manual step
+- Also note that the `updateImportation` branch of `ntd-model-sch` had the wrong drug efficacies defined in the parameter files so the recent fits in May 25 used these incorrect values. Correct parameter files are in the `run-amis-fitting` branch.
+
 Notes about SCH: 
 
 - Warning: I adjusted the SCH code to match this repo but it hasn't been tested. 
@@ -59,9 +64,12 @@ Notes about SCH:
 | prepare_histories_and_maps_haematobium.R                   | runPrep_fitting.sh         |
 | prepare_histories_projections_sch.R                   | runPrep_projections.sh         |
 
-- If the data/batch allocations are changing for SCH need to manually change `id_no_mda` in `prepare_histories_projections_sch.R` to reflect batches with no MDA
-- Similarly for trichuris, if data/batch allocations change then need to change `original_last_batch_ID` in `prepare_histories_trichuris_projections`
-- Not required for changes to ascaris/hookworm because its due to the batches being reassigned at some point in the respective preparation scripts
+- Process summary: do `run_hist_maps.sh` (STH) or `runPrep_fitting.sh` first. These produce the maps and treatment histories used in the fitting, and also assigns the IUs into batches. You can then run `run_prep_hist_proj.sh` (STH) or `runPrep_projections.sh`
+- If no species noted in the file name, then the file does the preparations for all other species in the disease group.
+- In `prepare_histories_*.R` files for all species (both SCH and all 3 STH) we assume that the last batch contains IUs that had no MDA. 
+- In `prepare_histories_projections_{species}.R` the batches with no MDA (original batch and also any new/reassigned batches that were added) are hard-coded in the variables `id_no_mda` (SCH) and `original_last_batch_ID` (trichuris)
+- For ascaris/hookworm there is no specific variable to update in the projections script because its due to the batches being reassigned at some point in the respective preparation scripts
+- Note: the histories (both for fitting and projections) are saved in the folder `ntd-model-sch/sch_simulation/data/endgame_inputs_{species}`. 
 
 ### Running the fitting
 
@@ -89,7 +97,7 @@ These are for until the end of 2025, which means 2026.0 in the continuous scale.
 | preprocess_for_projections.R                                | runPreprocessing.sh           |
 | IUsWithInsufficientESS.R                                    | NA                            |     
 
-
+- Process summary: when the fitting is complete (both lower and higher sigma settings) do `runPreprocessing.sh` to prepare the results ready for the projections to 2026
 - `preprocess_for_projections.R`: creates the 200 parameter vectors (simulated from the fitted models) used in projections. Reorganises the files with the 200 samples used in projections, so that they are organised in the expected file hierarchy in the cloud.
 - `IUsWithInsufficientESS.R`:  finds IUs that have ESS < 200 (after also trying higher sigma=0.025). 
 
@@ -119,3 +127,5 @@ These are for until the end of 2025, which means 2026.0 in the continuous scale.
 - There can be a maximum number of tasks that can be submitted at a time on HPC clusters. 
 
 - Before running `runProj_{species}.sh`, we have to manually choose `species` in `run-sch/sth_amis/{disease}_projections_per_IU.py`. 
+
+- Projections are done by IU (i.e. one array job per IU). Indexing for the array numbers of the projections starts from 0 and goes up to the total number of IUs

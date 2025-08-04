@@ -3,6 +3,19 @@ library(tidyr)
 library(readr)
 library(writexl)
 library(readxl)
+library(optparse)
+
+# Command line arguments
+option_list <- list(
+  make_option(c("-i", "--id"),
+    type = "integer",
+    default = NULL,
+    help = "Optional batch ID to process. If not provided, all batches will be processed."
+  )
+)
+
+opt_parser <- OptionParser(option_list = option_list)
+opts <- parse_args(opt_parser)
 
 # Get paths from environment variables
 kPathToInputs <- Sys.getenv("PATH_TO_FITTING_PREP_INPUTS")
@@ -384,7 +397,19 @@ drug_wide = unique(histories_joined_full %>%
 kPathToEndgameInputs <- file.path(kPathToArtefacts, "endgame_inputs", "sch-mansoni")
 if (!dir.exists(kPathToEndgameInputs)) {dir.create(kPathToEndgameInputs, recursive = TRUE)}
 
-for (id in 1:max(iu_task_lookup$TaskID)){
+# Determine which batch IDs to process
+batch_ids <- if (!is.null(opts$id)) {
+  if (opts$id > max(iu_task_lookup$TaskID)) {
+    stop(paste("Specified batch ID", opts$id, "exceeds maximum available batch ID", max(iu_task_lookup$TaskID)))
+  }
+  opts$id
+} else {
+  1:max(iu_task_lookup$TaskID)
+}
+
+print(paste("Processing batch IDs:", paste(batch_ids, collapse=", ")))
+
+for (id in batch_ids){
 
   iu_file<-file.path(kPathToEndgameInputs,paste0("IUs_MTP_",id,".csv"))
   ius_per_batch = iu_task_lookup %>%

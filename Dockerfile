@@ -46,7 +46,8 @@ RUN conda install --override-channels -c conda-forge -c r --yes --name base \
     r-renv \
     r-readxl \
     r-writexl \
-    r-pracma
+    r-pracma \
+    r-mvtnorm
 
 # Cannot activate the conda environment easily
 # So instead adjust shell to run everything inside Conda

@@ -5,7 +5,7 @@ get_amis_integration_package <- function() {
   return(sch_simulation)
 }
 
-build_transmission_model <- function(prevalence_map, fixed_parameters, year_indices, num_cores, final_state_config = NULL) {
+build_transmission_model <- function(prevalence_map, fixed_parameters, year_indices, num_cores, final_state_config = NULL, trajectory_file = NULL) {
   if (is.list(prevalence_map)) {
     if (length(prevalence_map) != length(year_indices)) {
       error_string <- sprintf("Length of prevalance map (%i) must match the number of years provided in year_indices (%i)", length(prevalence_map), length(year_indices))
@@ -28,10 +28,10 @@ build_transmission_model <- function(prevalence_map, fixed_parameters, year_indi
     )
     colnames(output) = year_indices_all
     
-    if(task=="fitting"){
-      load(paste0("../trajectories/trajectories_",id,"_",species,".Rdata"))
-      trajectories =  rbind(trajectories,output)
-      save(trajectories, file=paste0("../trajectories/trajectories_",id,"_",species,".Rdata"))
+    if(!is.null(trajectory_file) && file.exists(trajectory_file)){
+      load(trajectory_file)
+      trajectories = rbind(trajectories, output)
+      save(trajectories, file=trajectory_file)
     }
     
     return(output[,colnames(output) %in% year_indices])

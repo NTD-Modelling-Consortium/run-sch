@@ -1,46 +1,116 @@
-
-# on cluster:
-id = as.numeric(Sys.getenv("SLURM_ARRAY_TASK_ID"))
-# for testing:
-#id = 199
-#setwd("~/Documents/STH-endgame-apr25/ntd-model-sch/")
-#num_cores_to_use <- 8
-
-# should be "ascaris", "hookworm" or "trichuris"
-species = "trichuris"
-task = "fitting"
-
 library(dplyr)
 library(AMISforInfectiousDiseases)
+library(optparse)
 
-# assuming working directory is ntd-model-sch
-source("../run-sch/R/amis_integration.R")
+# Get paths from environment variables
+kPathToFittingPrepArtefacts <- Sys.getenv("PATH_TO_FITTING_PREP_ARTEFACTS")
+kPathToMaps <- file.path(kPathToFittingPrepArtefacts, "Maps")
+kPathToEndgameInputs <- file.path(kPathToFittingPrepArtefacts, "endgame_inputs", "STH")
+kPathToArtefacts <- Sys.getenv("PATH_TO_FITTING_ARTEFACTS")
+kPathToTrajectories <- file.path(kPathToArtefacts, "trajectories")
+kPathToAmisOutput <- file.path(kPathToArtefacts, "AMIS_output")
+kPathToFittingScripts <- Sys.getenv("PATH_TO_FITTING_SCRIPTS")
 
-args <- commandArgs(trailingOnly=TRUE)
-num_cores_to_use <- parallel::detectCores()
-if(length(args) == 1) {
-    num_cores_to_use <- as.integer(args)
+# Create output directories if they don't exist
+if (!dir.exists(kPathToTrajectories)) {dir.create(kPathToTrajectories, recursive = TRUE)}
+if (!dir.exists(kPathToAmisOutput)) {dir.create(kPathToAmisOutput, recursive = TRUE)}
+
+# Command line arguments
+option_list <- list(
+  make_option(c("-i", "--id"),
+    type = "integer",
+    help = "Single batch ID to process. If not provided, will check the 'SLURM_ARRAY_TASK_ID' environment variable."
+  ),
+  make_option(c("-s", "--species"),
+    type = "character",
+    help = "Species to process: ascaris, hookworm, or trichuris",
+    metavar = "SPECIES"
+  ),
+  make_option(c("--amis-sigma"),
+    type = "double",
+    default = 0.0025,
+    help = "AMIS sigma parameter (default: 0.0025)"
+  ),
+  make_option(c("--amis-n-samples"),
+    type = "integer",
+    default = 1000,
+    help = "Number of AMIS samples (default: 1000)"
+  ),
+  make_option(c("--amis-target-ess"),
+    type = "integer",
+    default = 500,
+    help = "Target ESS parameter for AMIS (default: 500)"
+  ),
+  make_option(c("--num-cores"),
+    type = "integer",
+    default = NULL,
+    help = "Number of cores to use for parallel processing (default: all available)"
+  ),
+  make_option(c("--amis-n-iters"),
+    type = "integer",
+    default = 50,
+    help = "Maximum number of AMIS iterations (default: 50)"
+  )
+)
+
+opt_parser <- OptionParser(option_list = option_list)
+opts <- parse_args(opt_parser)
+
+# Get batch ID
+id <- if (!is.null(opts$id)) {
+  opts$id
+} else {
+  env_var_id <- as.numeric(Sys.getenv("SLURM_ARRAY_TASK_ID"))
+  if (!is.na(env_var_id)) {
+    env_var_id
+  } else {
+    stop("Batch ID is not provided in the command line arguments and SLURM_ARRAY_TASK_ID environment variable is not defined")
+  }
 }
 
-print(paste0('Using ', num_cores_to_use, ' cores'))
+# Get species
+if (is.null(opts$species)) {
+  stop("Species must be specified using --species argument (ascaris, hookworm, or trichuris)")
+}
+species <- opts$species
+if (!species %in% c("ascaris", "hookworm", "trichuris")) {
+  stop("Species must be one of: ascaris, hookworm, trichuris")
+}
 
-reticulate::use_virtualenv("../.venv/", required=TRUE)
+# Get number of cores
+num_cores_to_use <- if (!is.null(opts$"num-cores")) {
+  opts$"num-cores"
+} else {
+  parallel::detectCores()
+}
+
+print(paste0('Processing batch ID ', id, ' for species ', species))
+print(paste0('Using ', num_cores_to_use, ' cores'))
+print(paste0('AMIS parameters: sigma=', opts$"amis-sigma", ', n_samples=', opts$"amis-n-samples", ', target_ess=', opts$"amis-target-ess", ', max_iters=', opts$"amis-n-iters"))
+
+# Source AMIS integration code
+source(file.path(kPathToFittingScripts, "amis_integration.R"))
+
+# Setup Python environment
+# In Docker, Python packages are installed globally, no venv needed
+# reticulate::use_virtualenv("../.venv/", required=TRUE)
 sch_simulation <- get_amis_integration_package()
 reticulate::py_config()
 
+# Fixed parameters for the simulation
 fixed_parameters <- sch_simulation$FixedParameters(
     # the higher the value of N, the more consistent the results will be
     # though the longer the simulation will take
     number_hosts = 500L,
-    # no intervention
+    # MDA coverage file
     coverage_file_name = ifelse(species=="trichuris",
-                                paste0("endgame_inputs_STH/InputMDA_MTP_trichuris_",id,".xlsx"),
-                                paste0("endgame_inputs_STH/InputMDA_MTP_",id,".xlsx")),
+                                file.path(kPathToEndgameInputs, paste0("InputMDA_MTP_trichuris_", id, ".xlsx")),
+                                file.path(kPathToEndgameInputs, paste0("InputMDA_MTP_", id, ".xlsx"))),
     demography_name = "UgandaRural",
-    # cset the survey type to Kato Katz with duplicate slide
+    # set the survey type to Kato Katz with duplicate slide
     survey_type = "KK2",
-    parameter_file_name = paste0("STH_params/",species,"_params.txt"),
-    coverage_text_file_storage_name = paste0("Man_MDA_vacc_",species,"_",id,".txt"),
+    parameter_file_name = paste0("STH_params/", species, "_params.txt"),
+    coverage_text_file_storage_name = paste0("Man_MDA_vacc_", species, "_", id, ".txt"),
     # the following number dictates the number of events (e.g. worm deaths)
     # we allow to happen before updating other parts of the model
     # the higher this number the faster the simulation
@@ -52,7 +122,6 @@ fixed_parameters <- sch_simulation$FixedParameters(
     min_multiplier = 5L
 )
 
-
 # Clarifying year_indices
 # - The Python code can simulate prevalences at any point in continuous time.
 # - In the Python code, year_indices 0, 1, ..., 33 refer to years 1985.0, 1986.0, ..., 2018.0 (beginning of each year).
@@ -63,8 +132,8 @@ fixed_parameters <- sch_simulation$FixedParameters(
 year_indices <- c(16L,29L,34L)
 
 # Load prevalence map and filter rows for TaskID == id
-load(paste0("../Maps-STH/",species,"_maps.rds"))
-prevalence_map = get(paste0(species,"_map_allyears"))
+load(file.path(kPathToMaps, paste0(species, "_maps.rds")))
+prevalence_map = get(paste0(species, "_map_allyears"))
 prevalence_map = lapply(1:length(prevalence_map), function(t){
   output=list(data = as.matrix(prevalence_map[[t]]$data %>% 
                                  filter(TaskID==id) %>% 
@@ -72,53 +141,66 @@ prevalence_map = lapply(1:length(prevalence_map), function(t){
               likelihood = prevalence_map[[t]]$likelihood)
   rownames(output$data) = rownames(prevalence_map[[t]]$data)[prevalence_map[[t]]$data$TaskID==id]
   return(output)
-  
 })
 
-# load prior
-source(paste0("../run-sch/",species,"_prior.R"))
+# Load prior
+source(file.path(kPathToFittingScripts, paste0(species, "_prior.R")))
 prior = Prior
 
 # Algorithm parameters
-amis_params<-default_amis_params()
-amis_params$max_iters=50
-amis_params$n_samples=1000
-amis_params$target_ess=500
-amis_params$sigma=0.0025
-amis_params$boundaries=c(-Inf,Inf)
-amis_params$boundaries_param = matrix(c(R_lb,k_lb,R_ub,k_ub),ncol=2)
+amis_params <- default_amis_params()
+amis_params$max_iters = opts$"amis-n-iters"
+amis_params$n_samples = opts$"amis-n-samples"
+amis_params$target_ess = opts$"amis-target-ess"
+amis_params$sigma = opts$"amis-sigma"
+amis_params$boundaries = c(-Inf, Inf)
+amis_params$boundaries_param = matrix(c(R_lb, k_lb, R_ub, k_ub), ncol=2)
 
-# shell to save trajectories
-# commented out to pass Github tests (maybe this is bad practice...)
+# Shell to save trajectories
 trajectories <- c() # save simulated trajectories as code is running
-if (!dir.exists("../trajectories")) {dir.create("../trajectories")}
-save(trajectories,file=paste0("../trajectories/trajectories_",id,"_",species,".Rdata"))
+path_trajectories_file <- file.path(kPathToTrajectories, paste0("trajectories_", id, "_", species, ".Rdata"))
+save(trajectories, file=path_trajectories_file)
 
 # Run AMIS
-st<-Sys.time()
+st <- Sys.time()
 amis_output <- AMISforInfectiousDiseases::amis(
     prevalence_map,
-    build_transmission_model(prevalence_map, fixed_parameters, year_indices, num_cores_to_use),
+    build_transmission_model(prevalence_map, fixed_parameters, year_indices, num_cores_to_use, NULL,
+                             path_trajectories_file),
     prior,
     amis_params,
     seed = id
 )
-en<-Sys.time()
-dur_amis<-as.numeric(difftime(en,st,units="mins"))
-if (!dir.exists("../AMIS_output")) {dir.create("../AMIS_output")}
-save(amis_output,file=paste0("../AMIS_output/",species,"_amis_output",id,".Rdata"))
+en <- Sys.time()
+dur_amis <- as.numeric(difftime(en, st, units="mins"))
+
+# Save AMIS output with sigma suffix if not default
+output_suffix <- ifelse(opts$"amis-sigma" == 0.0025, "", paste0("_sigma", opts$"amis-sigma"))
+save(amis_output, file=file.path(kPathToAmisOutput, paste0(species, "_amis_output", id, output_suffix, ".Rdata")))
 
 print(amis_output)
 summary(amis_output)
 cat("--------------------- \n")
 print(paste0("AMIS run time: ", round(dur_amis, digits=2), " minutes"))
 
-# save summary
-ess<-amis_output$ess
-n_success<-length(which(ess>=amis_params[["target_ess"]]))
-failures<-which(ess<amis_params[["target_ess"]])
-n_failure<-length(failures)
-if (n_failure>0) {cat(paste(failures,id,ess[failures]),file = paste0("../ESS_NOT_REACHED_",species,".txt"),sep = "\n", append = TRUE)}
-if (!file.exists(paste0("../summary_",species,".csv"))) {cat("ID,n_failure,n_success,n_sim,min_ess,duration_amis,durarion_subsampling\n",file=paste0("../summary_",species,".csv"))}
-cat(id,n_failure,n_success,length(amis_output$seeds),min(ess),dur_amis,NA,"\n",sep=",",file=paste0("../summary_",species,".csv"),append=TRUE)
+# Save summary
+ess <- amis_output$ess
+n_success <- length(which(ess >= amis_params[["target_ess"]]))
+failures <- which(ess < amis_params[["target_ess"]])
+n_failure <- length(failures)
 
+# Save ESS failures
+ess_file <- file.path(kPathToArtefacts, paste0("ESS_NOT_REACHED_", species, output_suffix, ".txt"))
+if (n_failure > 0) {
+  cat(paste(failures, id, ess[failures]), file = ess_file, sep = "\n", append = TRUE)
+}
+
+# Save summary
+summary_file <- file.path(kPathToArtefacts, paste0("summary_", species, output_suffix, ".csv"))
+if (!file.exists(summary_file)) {
+  cat("ID,n_failure,n_success,n_sim,min_ess,duration_amis,duration_subsampling\n", file=summary_file)
+}
+cat(id, n_failure, n_success, length(amis_output$seeds), min(ess), dur_amis, NA, "\n", 
+    sep=",", file=summary_file, append=TRUE)
+
+cat("Fitting completed successfully!\n")

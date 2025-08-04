@@ -75,6 +75,7 @@ dprior<-function(x,log=FALSE) {
   }
 }
 prior_mvn<-list(rprior=rprior,dprior=dprior)
+Prior<-list(rprior=rprior,dprior=dprior)
 
 prior_acceptances<<-10^7
 prior_samples<<-13280021

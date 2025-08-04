@@ -1,10 +1,14 @@
 ### Based on equations from Truscott et al. (2019) Heterogeneity in transmission parameters of hookworm infection within the baseline data from the TUMIKIA study in Kenya
 
 #d5PYtKsLEzm7RJy! 
- if (file.exists('RawDataForPrior.csv')) {
-   d<-read.csv('RawDataForPrior.csv')
+ # Get path from environment variable
+ kPathToFittingInputs <- Sys.getenv("PATH_TO_FITTING_INPUTS")
+ raw_data_file <- file.path(kPathToFittingInputs, "RawDataForPrior.csv")
+ 
+ if (file.exists(raw_data_file)) {
+   d<-read.csv(raw_data_file)
  } else {
-   d<-read.csv('../run-sch/RawDataForPrior.csv')
+   stop("RawDataForPrior.csv not found in PATH_TO_FITTING_INPUTS directory")
  }
  log.likelihood <- function(pars,pos,neg,mu) {
     a<-pars[1]

@@ -70,76 +70,83 @@ def run_command(command, description=None, cwd=None):
         return False
 
 
-def run_fitting_prep_sth(species_list, for_projections=False):
+def run_fitting_prep_sth(species_list, batch_id=None):
     """Run fitting preparation for STH species."""
     base_path = "/ntdmc/sth-sch-amis-integration" if os.path.exists('/.dockerenv') else "."
     scripts_path = f"{base_path}/fitting-prep/scripts"
     
+    commands = []
+    
+    # For STH maps preparation, we need BOTH ascaris/hookworm AND trichuris histories
+    # because prepare_maps_allspecies.R reads both files
+    needs_ascaris_hookworm = (STHSpecies.ASCARIS in species_list or 
+                             STHSpecies.HOOKWORM in species_list or 
+                             STHSpecies.ALL in species_list)
+    needs_trichuris = (STHSpecies.TRICHURIS in species_list or 
+                      STHSpecies.ALL in species_list)
+    
+    # Build batch argument for projection scripts
+    batch_arg = f" --id {batch_id}" if batch_id else ""
+    
     # First, prepare histories for fitting
-    if not for_projections:
-        commands = []
-        
-        # For STH maps preparation, we need BOTH ascaris/hookworm AND trichuris histories
-        # because prepare_maps_allspecies.R reads both files
-        needs_ascaris_hookworm = (STHSpecies.ASCARIS in species_list or 
-                                 STHSpecies.HOOKWORM in species_list or 
-                                 STHSpecies.ALL in species_list)
-        needs_trichuris = (STHSpecies.TRICHURIS in species_list or 
-                          STHSpecies.ALL in species_list)
-        
-        if needs_ascaris_hookworm:
-            commands.append(("Rscript prepare_histories.R", "Preparing histories for ascaris/hookworm"))
-        
-        if needs_trichuris or needs_ascaris_hookworm:  # Always run trichuris if any STH species needed
-            commands.append(("Rscript prepare_histories_trichuris.R", "Preparing histories for trichuris"))
-        
-        # Always run maps preparation after histories
-        if commands:
-            commands.append(("Rscript prepare_maps_allspecies.R", "Preparing maps for all STH species"))
-        
-        for cmd, desc in commands:
-            if not run_command(cmd, desc, cwd=scripts_path):
-                return False
-    else:
-        # Prepare histories for projections
-        commands = []
-        
-        if STHSpecies.ASCARIS in species_list or STHSpecies.HOOKWORM in species_list or STHSpecies.ALL in species_list:
-            commands.append(("Rscript prepare_histories_projections.R", "Preparing projection histories for ascaris/hookworm"))
-        
-        if STHSpecies.TRICHURIS in species_list or STHSpecies.ALL in species_list:
-            commands.append(("Rscript prepare_histories_trichuris_projections.R", "Preparing projection histories for trichuris"))
-        
-        for cmd, desc in commands:
-            if not run_command(cmd, desc, cwd=scripts_path):
-                return False
+    if needs_ascaris_hookworm:
+        commands.append(("Rscript prepare_histories.R", "Preparing histories for ascaris/hookworm"))
+    
+    if needs_trichuris or needs_ascaris_hookworm:  # Always run trichuris if any STH species needed
+        commands.append(("Rscript prepare_histories_trichuris.R", "Preparing histories for trichuris"))
+    
+    # Always run maps preparation after histories
+    if commands:
+        commands.append(("Rscript prepare_maps_allspecies.R", "Preparing maps for all STH species"))
+    
+    # Also prepare projection lookup tables (table_iu_idx files)
+    if needs_ascaris_hookworm:
+        commands.append((f"Rscript prepare_histories_projections.R --species ascaris{batch_arg}", "Preparing projection lookup tables for ascaris"))
+        commands.append((f"Rscript prepare_histories_projections.R --species hookworm{batch_arg}", "Preparing projection lookup tables for hookworm"))
+    
+    if needs_trichuris:
+        commands.append((f"Rscript prepare_histories_trichuris_projections.R --species trichuris{batch_arg}", "Preparing projection lookup tables for trichuris"))
+    
+    for cmd, desc in commands:
+        if not run_command(cmd, desc, cwd=scripts_path):
+            return False
     
     return True
 
 
-def run_fitting_prep_sch(species_list, for_projections=False, batch_id=None):
+def run_fitting_prep_sch(species_list, batch_id=None):
     """Run fitting preparation for SCH species."""
     base_path = "/ntdmc/sth-sch-amis-integration" if os.path.exists('/.dockerenv') else "."
     scripts_path = f"{base_path}/fitting-prep/scripts"
     
-    if not for_projections:
-        commands = []
-        
-        batch_arg = f" --id {batch_id}" if batch_id else ""
-        
+    commands = []
+    
+    batch_arg = f" --id {batch_id}" if batch_id else ""
+    
+    # Prepare histories and maps for fitting
+    if SCHSpecies.HAEMATOBIUM in species_list or SCHSpecies.ALL in species_list:
+        commands.append((f"Rscript prepare_histories_and_maps_haematobium.R{batch_arg}", "Preparing histories and maps for haematobium"))
+    
+    if SCHSpecies.MANSONI_HIGH in species_list or SCHSpecies.MANSONI_LOW in species_list or SCHSpecies.ALL in species_list:
+        commands.append((f"Rscript prepare_histories_and_maps_mansoni.R{batch_arg}", "Preparing histories and maps for mansoni"))
+    
+    # Also prepare projection lookup tables (table_iu_idx files)
+    if species_list:  # If any SCH species requested
+        # Determine species argument for SCH projection script
         if SCHSpecies.HAEMATOBIUM in species_list or SCHSpecies.ALL in species_list:
-            commands.append((f"Rscript prepare_histories_and_maps_haematobium.R{batch_arg}", "Preparing histories and maps for haematobium"))
+            species_arg = "haematobium"
+        elif SCHSpecies.MANSONI_HIGH in species_list:
+            species_arg = "mansoni_high_burden"
+        elif SCHSpecies.MANSONI_LOW in species_list:
+            species_arg = "mansoni_low_burden"
+        else:
+            species_arg = "haematobium"  # default
         
-        if SCHSpecies.MANSONI_HIGH in species_list or SCHSpecies.MANSONI_LOW in species_list or SCHSpecies.ALL in species_list:
-            commands.append((f"Rscript prepare_histories_and_maps_mansoni.R{batch_arg}", "Preparing histories and maps for mansoni"))
-        
-        for cmd, desc in commands:
-            if not run_command(cmd, desc, cwd=scripts_path):
-                return False
-    else:
-        # Prepare histories for projections
-        if not run_command("Rscript prepare_histories_projections_sch.R", 
-                         "Preparing projection histories for SCH species", cwd=scripts_path):
+        commands.append((f"Rscript prepare_histories_projections_sch.R --species {species_arg}{batch_arg}", 
+                        f"Preparing projection lookup tables for SCH species: {species_arg}"))
+    
+    for cmd, desc in commands:
+        if not run_command(cmd, desc, cwd=scripts_path):
             return False
     
     return True
@@ -243,6 +250,106 @@ def run_fitting_sch(species_list, args):
     return True
 
 
+def run_projections_prep_sth(species_list, args):
+    """Run projections preparation for STH species."""
+    base_path = "/ntdmc/sth-sch-amis-integration" if os.path.exists('/.dockerenv') else "."
+    scripts_path = f"{base_path}/projections-prep/scripts"
+    
+    # Determine which species to process
+    species_to_process = []
+    if STHSpecies.ALL in species_list:
+        species_to_process = ["ascaris", "hookworm", "trichuris"]
+    else:
+        species_to_process = [s.value for s in species_list]
+    
+    # Process each species
+    for species in species_to_process:
+        print(f"\nProcessing projections prep for STH species: {species}")
+        
+        # Build command with base arguments
+        cmd_parts = [
+            "Rscript", "preprocess_for_projections.R",
+            "--species", species
+        ]
+        
+        # Add single batch ID if provided
+        if args.id:
+            cmd_parts.extend(["--id", str(args.id)])
+        
+        # Add failed IDs if provided
+        if args.failed_ids:
+            cmd_parts.extend(["--failed-ids", args.failed_ids])
+        
+        # Add ESS threshold if provided
+        if args.ess_threshold:
+            cmd_parts.extend(["--ess-threshold", str(args.ess_threshold)])
+        
+        # Add AMIS sigma if provided
+        if args.amis_sigma:
+            cmd_parts.extend(["--amis-sigma", str(args.amis_sigma)])
+        
+        cmd = " ".join(cmd_parts)
+        
+        # Run preprocessing command
+        if not run_command(cmd, f"Running projections preprocessing for {species}", cwd=scripts_path):
+            print(f"✗ Projections prep failed for {species}", file=sys.stderr)
+            return False
+        
+        print(f"✓ Projections prep completed for {species}")
+    
+    return True
+
+
+def run_projections_prep_sch(species_list, args):
+    """Run projections preparation for SCH species."""
+    base_path = "/ntdmc/sth-sch-amis-integration" if os.path.exists('/.dockerenv') else "."
+    scripts_path = f"{base_path}/projections-prep/scripts"
+    
+    # Determine which species to process
+    species_to_process = []
+    if SCHSpecies.ALL in species_list:
+        species_to_process = ["haematobium", "mansoni_low_burden", "mansoni_high_burden"]
+    else:
+        species_to_process = [s.value for s in species_list]
+    
+    # Process each species
+    for species in species_to_process:
+        print(f"\nProcessing projections prep for SCH species: {species}")
+        
+        # Build command with base arguments
+        cmd_parts = [
+            "Rscript", "preprocess_for_projections.R",
+            "--species", species
+        ]
+        
+        # Add single batch ID if provided
+        if args.id:
+            cmd_parts.extend(["--id", str(args.id)])
+        
+        # Add failed IDs if provided
+        if args.failed_ids:
+            cmd_parts.extend(["--failed-ids", args.failed_ids])
+        
+        # Add ESS threshold if provided
+        if args.ess_threshold:
+            cmd_parts.extend(["--ess-threshold", str(args.ess_threshold)])
+        
+        # Add AMIS sigma if provided
+        if args.amis_sigma:
+            cmd_parts.extend(["--amis-sigma", str(args.amis_sigma)])
+        
+        cmd = " ".join(cmd_parts)
+        
+        # Run preprocessing command
+        if not run_command(cmd, f"Running projections preprocessing for {species}", cwd=scripts_path):
+            print(f"✗ Projections prep failed for {species}", file=sys.stderr)
+            return False
+        
+        print(f"✓ Projections prep completed for {species}")
+    
+    return True
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Run STH/SCH fitting and projections pipeline stages",
@@ -290,11 +397,6 @@ Examples:
         help="SCH species to process - can be comma-separated (e.g., 'haematobium,mansoni_high_burden') or space-separated (default: all)"
     )
     
-    parser.add_argument(
-        "--for-projections",
-        action="store_true",
-        help="Prepare data for projections (vs fitting)"
-    )
     
     # Stage-specific arguments
     parser.add_argument("--id", type=int, help="Batch/Task ID")
@@ -369,11 +471,11 @@ Examples:
         
         if sth_species:
             print(f"\nRunning fitting-prep for STH species: {[s.value for s in sth_species]}")
-            success = success and run_fitting_prep_sth(sth_species, args.for_projections)
+            success = success and run_fitting_prep_sth(sth_species, args.id)
         
         if sch_species:
             print(f"\nRunning fitting-prep for SCH species: {[s.value for s in sch_species]}")
-            success = success and run_fitting_prep_sch(sch_species, args.for_projections, args.id)
+            success = success and run_fitting_prep_sch(sch_species, args.id)
         
         if success:
             print("\nFitting preparation completed successfully!")
@@ -404,16 +506,101 @@ Examples:
             sys.exit(1)
     
     elif stage == Stage.PROJECTIONS_PREP:
-        print("Projections preparation stage not yet implemented")
-        sys.exit(1)
+        success = True
+        
+        if sth_species:
+            print(f"\nRunning projections-prep for STH species: {[s.value for s in sth_species]}")
+            success = success and run_projections_prep_sth(sth_species, args)
+        
+        if sch_species:
+            print(f"\nRunning projections-prep for SCH species: {[s.value for s in sch_species]}")
+            success = success and run_projections_prep_sch(sch_species, args)
+        
+        if success:
+            print("\nProjections preparation completed successfully!")
+        else:
+            print("\nProjections preparation failed!", file=sys.stderr)
+            sys.exit(1)
     
     elif stage == Stage.NEARTERM_PROJECTIONS:
         print("Near-term projections stage not yet implemented")
         sys.exit(1)
     
     elif stage == Stage.ALL:
-        print("Running all stages not yet implemented")
-        sys.exit(1)
+        print("Running complete pipeline: fitting-prep → fitting → projections-prep")
+        success = True
+        
+        # Stage 1: Fitting-prep
+        print(f"\n{'='*60}")
+        print("STAGE 1: FITTING-PREP")
+        print(f"{'='*60}")
+        
+        if sth_species:
+            print(f"Running fitting-prep for STH species: {[s.value for s in sth_species]}")
+            success = success and run_fitting_prep_sth(sth_species, args.id)
+        
+        if sch_species:
+            print(f"Running fitting-prep for SCH species: {[s.value for s in sch_species]}")
+            success = success and run_fitting_prep_sch(sch_species, args.id)
+        
+        if not success:
+            print("\nFitting preparation failed!", file=sys.stderr)
+            sys.exit(1)
+        
+        # Stage 2: Fitting
+        print(f"\n{'='*60}")
+        print("STAGE 2: FITTING")
+        print(f"{'='*60}")
+        
+        # Validate required arguments for fitting
+        if args.id is None:
+            print("Error: --id is required for fitting stage", file=sys.stderr)
+            sys.exit(1)
+        
+        if sth_species:
+            print(f"Running fitting for STH species: {[s.value for s in sth_species]}")
+            success = success and run_fitting_sth(sth_species, args)
+        
+        if sch_species:
+            print(f"Running fitting for SCH species: {[s.value for s in sch_species]}")
+            success = success and run_fitting_sch(sch_species, args)
+        
+        if not success:
+            print("\nFitting failed!", file=sys.stderr)
+            sys.exit(1)
+        
+        # Stage 3: Projections-prep
+        print(f"\n{'='*60}")
+        print("STAGE 3: PROJECTIONS-PREP")
+        print(f"{'='*60}")
+        
+        if sth_species:
+            print(f"Running projections-prep for STH species: {[s.value for s in sth_species]}")
+            success = success and run_projections_prep_sth(sth_species, args)
+        
+        if sch_species:
+            print(f"Running projections-prep for SCH species: {[s.value for s in sch_species]}")
+            success = success and run_projections_prep_sch(sch_species, args)
+        
+        if not success:
+            print("\nProjections preparation failed!", file=sys.stderr)
+            sys.exit(1)
+        
+        # Stage 4: Near-term projections (not yet implemented)
+        print(f"\n{'='*60}")
+        print("STAGE 4: NEAR-TERM PROJECTIONS")
+        print(f"{'='*60}")
+        print("⚠️  Near-term projections stage not yet implemented - skipping")
+        print("✅ Pipeline completed successfully through projections-prep stage!")
+        
+        print(f"\n{'='*60}")
+        print("COMPLETE PIPELINE SUMMARY")
+        print(f"{'='*60}")
+        print("✅ fitting-prep: COMPLETED")
+        print("✅ fitting: COMPLETED") 
+        print("✅ projections-prep: COMPLETED")
+        print("⚠️  nearterm-projections: SKIPPED (not implemented)")
+        print(f"{'='*60}")
     
     elif stage == Stage.SKIP_FITTING_PREP:
         print("Skip fitting-prep workflow not yet implemented")

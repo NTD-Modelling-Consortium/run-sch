@@ -1,22 +1,62 @@
 library(dplyr)
 library(tidyr)
 library(writexl)
+library(optparse)
+library(sf)
 
-species_sch = c("mansoni","haematobium") # only need to do once for mansoni low and high burden
+# Define command line options
+option_list <- list(
+  make_option(c("-s", "--species"),
+    type = "character",
+    default = "haematobium",
+    help = "Species to process (haematobium, mansoni_low_burden, mansoni_high_burden) [default=%default]"
+  ),
+  make_option(c("-i", "--id"),
+    type = "integer",
+    default = NULL,
+    help = "Single batch ID to process. If not provided, will process all batches"
+  )
+)
+
+# Parse command line arguments
+opt_parser <- OptionParser(option_list = option_list)
+opts <- parse_args(opt_parser)
+
+# Set up paths from environment variables
+kPathToInputs <- Sys.getenv("PATH_TO_FITTING_PREP_INPUTS")
+kPathToArtefacts <- Sys.getenv("PATH_TO_FITTING_PREP_ARTEFACTS")
+kPathToMapsSCH <- file.path(kPathToInputs, "Maps-SCH")
+kPathToMapsArtefacts <- file.path(kPathToArtefacts, "Maps")
+kPathToESPEN <- file.path(kPathToInputs, "ESPEN_IU_2021")
+
+# Create output directories if they don't exist
+if (!dir.exists(kPathToMapsArtefacts)) {
+  dir.create(kPathToMapsArtefacts, recursive = TRUE)
+}
+
+# Process species from command line argument - map to internal naming
+species_input <- opts$species
+if (species_input == "haematobium") {
+  species_sch <- c("haematobium")
+} else if (species_input %in% c("mansoni_low_burden", "mansoni_high_burden")) {
+  species_sch <- c("mansoni")  # Both variants use same mansoni processing
+} else {
+  stop(paste("Invalid species:", species_input, ". Valid choices: haematobium, mansoni_low_burden, mansoni_high_burden"))
+}
 
 for (species in species_sch){
   if (species=="haematobium"){
-    load(paste0("haematobium_maps.rds"))
+    load(file.path(kPathToMapsArtefacts, "haematobium_maps.rds"))
     prevalence_map = get(paste0("haematobium_maps"))
   } else {
-    load(paste0("mansoni_maps.rds"))
+    load(file.path(kPathToMapsArtefacts, "mansoni_maps.rds"))
     prevalence_map = get(paste0("mansoni_maps"))
   }
   
   map_2002 = prevalence_map[[1]]$data
   
   # Read in MDA history
-  sch_histories_raw = read.csv("Schisto_IU_Cleaned_1.csv") %>%
+  sch_histories_raw = read.csv(file.path(kPathToMapsSCH, "Schisto_IU_Cleaned_1.csv")) %>%
     mutate(EpiCov_binned = case_when(
       EpiCov <= 15 ~ 0,
       EpiCov > 15 & EpiCov <= 75 ~ 0.15,
@@ -125,10 +165,10 @@ for (species in species_sch){
   
   # Load task IDs and Overwrite MDA files for IUs with no treatments to add negligible coverage (otherwise python code will break)
   if (species == "haematobium"){
-    load("iu_task_lookup_haema.rds")
+    load(file.path(kPathToMapsArtefacts, "iu_task_lookup_haema.rds"))
     id_no_mda = c(1124,1227)
   } else {
-    load("iu_task_lookup_mansoni.rds")
+    load(file.path(kPathToMapsArtefacts, "iu_task_lookup_mansoni.rds"))
     id_no_mda = c(1088,1204)
   }
   
@@ -139,7 +179,7 @@ for (species in species_sch){
   projections_full[inds, colnames(projections_full) %in% c("EpiCov_binned")] = 1e-11
   projections_full[inds, colnames(projections_full) %in% c("MDA_scheme")] = notPZQ_name
   
-  write.csv(projections_full, file=paste0("mda_history_",species,".csv"))
+  write.csv(projections_full, file=file.path(kPathToMapsArtefacts, paste0("mda_history_",species,".csv")))
   
   # Get into format for python model
   coverage_wide = projections_full %>%
@@ -181,13 +221,25 @@ for (species in species_sch){
   
   # export histories files and define batches to run
   if (species == "haematobium"){
-    inputs_path = "../ntd-model-sch/sch_simulation/data/endgame_inputs_haema"
-    id_list = 1:max(iu_task_lookup$TaskID)
+    inputs_path = file.path(kPathToArtefacts, "endgame_inputs", "sch-haematobium")
   } else {
-    inputs_path = "../ntd-model-sch/sch_simulation/data/endgame_inputs_mansoni"
-    id_list = 1:max(iu_task_lookup$TaskID)
+    inputs_path = file.path(kPathToArtefacts, "endgame_inputs", "sch-mansoni")
   }
-  if (!dir.exists(inputs_path)) {dir.create(inputs_path)}
+  if (!dir.exists(inputs_path)) {dir.create(inputs_path, recursive = TRUE)}
+  
+  # Determine which batches to process
+  if (!is.null(opts$id)) {
+    # Validate single batch ID
+    max_batch_id <- max(iu_task_lookup$TaskID)
+    if (opts$id > max_batch_id || opts$id < 1) {
+      stop(paste("Specified batch ID", opts$id, "is out of range. Valid range: 1 to", max_batch_id))
+    }
+    id_list <- opts$id
+    cat(paste0("Processing single batch ID: ", opts$id, " for species: ", species, "\n"))
+  } else {
+    id_list <- 1:max(iu_task_lookup$TaskID)
+    cat(paste0("Processing all ", max(iu_task_lookup$TaskID), " batches for species: ", species, "\n"))
+  }
   
   
   for (id in id_list){
@@ -228,8 +280,7 @@ for (species in species_sch){
   table_iu_idx <- prevalence_map[[1]]$data[,c("IU_ID","TaskID")]
   colnames(table_iu_idx) <- c("IU_CODE","TaskID")
   rownames(table_iu_idx) <- NULL
-  library(sf)
-  df <- read_sf(dsn = "../../ESPEN_IU_2021/", layer = "ESPEN_IU_2021") %>%
+  df <- read_sf(dsn = kPathToESPEN, layer = "ESPEN_IU_2021") %>%
     filter(IU_ID %in% table_iu_idx$IU_CODE)
   df <- st_drop_geometry(df[,c("IU_ID","ADMIN0ISO3")])
   head(df)
@@ -244,6 +295,8 @@ for (species in species_sch){
   table_iu_idx$TaskID <- as.integer(table_iu_idx$TaskID)
   table_iu_idx$country <- as.character(table_iu_idx$country)
   
-  write.csv(table_iu_idx,file=paste0("table_iu_idx_",species,".csv"),row.names=F)
+  write.csv(table_iu_idx, file=file.path(kPathToMapsArtefacts, paste0("table_iu_idx_", species, ".csv")), row.names=F)
   
 }
+
+cat("Finished running prepare_histories_projections_sch.R \n")

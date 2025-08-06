@@ -1,14 +1,43 @@
 library(dplyr)
 library(tidyr)
 library(writexl)
-#setwd("~/Documents/STH-endgame/Maps")
+library(optparse)
+
+# Define command line options
+option_list <- list(
+  make_option(c("-s", "--species"),
+    type = "character",
+    default = "ascaris",
+    help = "Species to process (ascaris, hookworm) [default=%default]"
+  ),
+  make_option(c("-i", "--id"),
+    type = "integer",
+    default = NULL,
+    help = "Single batch ID to process. If not provided, will process all batches"
+  )
+)
+
+# Parse command line arguments
+opt_parser <- OptionParser(option_list = option_list)
+opts <- parse_args(opt_parser)
+
+# Set up paths from environment variables
+kPathToInputs <- Sys.getenv("PATH_TO_FITTING_PREP_INPUTS")
+kPathToArtefacts <- Sys.getenv("PATH_TO_FITTING_PREP_ARTEFACTS")
+kPathToMapsSTH <- file.path(kPathToInputs, "Maps-STH")
+kPathToMapsArtefacts <- file.path(kPathToArtefacts, "Maps")
+
+# Create output directory if it doesn't exist
+if (!dir.exists(kPathToMapsArtefacts)) {
+  dir.create(kPathToMapsArtefacts, recursive = TRUE)
+}
 
 # Read in data and remove problematic IUs
-sth_ius = unique(read.csv("sartorious_2021.csv") %>%
+sth_ius = unique(read.csv(file.path(kPathToMapsSTH, "sartorious_2021.csv")) %>%
   filter(!p4==1) %>%
   select(IU_2021))
 
-sth_histories_raw = read.csv("STHCleaned_1.csv") 
+sth_histories_raw = read.csv(file.path(kPathToMapsSTH, "STHCleaned_1.csv")) 
 sth_histories = sth_histories_raw %>%
   filter(IU_ID_MAPPING %in% sth_ius$IU_2021) %>%
   mutate(EpiCov_binned = case_when(
@@ -20,7 +49,7 @@ sth_histories = sth_histories_raw %>%
   select(IU_ID_MAPPING,Year,TargetPop,Year_TargetPop,EpiCov_binned,MDA_scheme) 
 
 # Use LF histories for pre2013
-lf_histories_raw= read.csv("LF_MDA_Africa_2024_IU_updated.csv") 
+lf_histories_raw= read.csv(file.path(kPathToMapsSTH, "LF_MDA_Africa_2024_IU_updated.csv")) 
 lf_histories = lf_histories_raw %>%
   mutate(IU_ID_MAPPING = as.numeric(substr(IU_ID,4,8))) %>%
   mutate_at(vars(starts_with("Cov")), ~cut(., 
@@ -115,7 +144,7 @@ projections_full = data.frame(IU_ID_MAPPING = rep(sth_ius$IU_2021,each=66),
 projections_full$MDA_scheme[is.na(projections_full$MDA_scheme)] = "Not delivered"
 
 # Load task IDs
-load("iu_task_lookup_sth.rds")
+load(file.path(kPathToMapsArtefacts, "iu_task_lookup_sth.rds"))
 
 # Overwrite MDA files for IUs with no treatments to add negligible coverage (otherwise python code will break)
 iu_no_mda = unique((projections_full %>% 
@@ -175,8 +204,8 @@ drug_wide = unique(projections_full %>%
 
 
 # export histories files
-inputs_path = "../ntd-model-sch/sch_simulation/data/endgame_inputs_STH"
-if (!dir.exists(inputs_path)) {dir.create(inputs_path)}
+inputs_path = file.path(kPathToArtefacts, "endgame_inputs", "STH")
+if (!dir.exists(inputs_path)) {dir.create(inputs_path, recursive = TRUE)}
 
 # Define new batches for projections   # iu_task_lookup was the original batch-IU lookup table used for fitting
 IUs <- sort(unique(iu_task_lookup$IU_2021))
@@ -184,12 +213,25 @@ num_IUs <- length(IUs)
 batch_size <- 1 # number of IUs in each batch for projections
 num_batches <- num_IUs/batch_size
 proj_iu_task_lookup <- data.frame(IU_2021=IUs, TaskID=sort(rep(1:num_batches, batch_size)))
-save(proj_iu_task_lookup, file="proj_iu_task_lookup_STH.rds")
+save(proj_iu_task_lookup, file=file.path(kPathToMapsArtefacts, "proj_iu_task_lookup_STH.rds"))
 
 num_batches <- max(proj_iu_task_lookup$TaskID)
 cat(paste0("Number of batches for projections: ", num_batches, "\n"))
 
-for (id in 1:num_batches){
+# Determine which batches to process
+if (!is.null(opts$id)) {
+  # Validate single batch ID
+  if (opts$id > num_batches || opts$id < 1) {
+    stop(paste("Specified batch ID", opts$id, "is out of range. Valid range: 1 to", num_batches))
+  }
+  batch_ids <- opts$id
+  cat(paste0("Processing single batch ID: ", opts$id, "\n"))
+} else {
+  batch_ids <- 1:num_batches
+  cat(paste0("Processing all ", num_batches, " batches\n"))
+}
+
+for (id in batch_ids){
 
   ius_per_batch = proj_iu_task_lookup %>%
     filter(TaskID == id)
@@ -223,10 +265,17 @@ for (id in 1:num_batches){
   cat(paste0("Files prepared for id = ", id, "; "))
 }
 
-species = "ascaris" # same for ascaris and hookworm
+# Use species from command line argument
+species <- opts$species
+
+# Validate species choice
+valid_species <- c("ascaris", "hookworm", "trichuris")
+if (!species %in% valid_species) {
+  stop(paste("Invalid species:", species, ". Valid choices:", paste(valid_species, collapse=", ")))
+}
 
 # read in map
-load(paste0(species,'_maps.rds')) # load species_map_allyears
+load(file.path(kPathToMapsArtefacts, paste0(species,'_maps.rds'))) # load species_map_allyears
 
 if(species=="ascaris"){
   species_map_allyears <- ascaris_map_allyears
@@ -240,7 +289,7 @@ if(species=="ascaris"){
 table_iu_idx <- species_map_allyears[[1]]$data[,c("IU_2021","TaskID")]
 colnames(table_iu_idx) <- c("IU_CODE","TaskID")
 rownames(table_iu_idx) <- NULL
-df <- read.csv("sartorious_2021.csv")
+df <- read.csv(file.path(kPathToMapsSTH, "sartorious_2021.csv"))
 df <- df[,c("IU_2021","ADMIN0ISO3")]
 head(df)
 table_iu_idx$country <- NA
@@ -253,7 +302,7 @@ for(i in 1:nrow(table_iu_idx)){
 table_iu_idx$IU_CODE <- as.character(table_iu_idx$IU_CODE)
 table_iu_idx$TaskID <- as.integer(table_iu_idx$TaskID)
 table_iu_idx$country <- as.character(table_iu_idx$country)
-write.csv(table_iu_idx, file = paste0("table_iu_idx_STH.csv"), row.names = F)
+write.csv(table_iu_idx, file = file.path(kPathToMapsArtefacts, "table_iu_idx_STH.csv"), row.names = F)
 
 cat("Finished running prepare_histories_projections.R \n")
 

@@ -350,6 +350,96 @@ def run_projections_prep_sch(species_list, args):
     return True
 
 
+def run_nearterm_projections_sth(species_list, args):
+    """Run near-term projections for STH species."""
+    base_path = "/ntdmc/sth-sch-amis-integration" if os.path.exists('/.dockerenv') else "."
+    scripts_path = f"{base_path}/projections/scripts"
+    
+    # Determine which species to process
+    species_to_process = []
+    if STHSpecies.ALL in species_list:
+        species_to_process = ["ascaris", "hookworm", "trichuris"]
+    else:
+        species_to_process = [s.value for s in species_list]
+    
+    # Process each species
+    for species in species_to_process:
+        print(f"\nRunning near-term projections for STH species: {species}")
+        
+        # Build command with base arguments
+        cmd_parts = [
+            "python", "sth_projections_per_IU.py",
+            "--species", species
+        ]
+        
+        # Add batch ID - required for projections
+        if args.id:
+            cmd_parts.extend(["--id", str(args.id)])
+        else:
+            print("Error: --id is required for nearterm-projections stage", file=sys.stderr)
+            return False
+        
+        # Add number of cores if provided
+        if args.num_cores:
+            cmd_parts.extend(["--num-cores", str(args.num_cores)])
+        
+        cmd = " ".join(cmd_parts)
+        
+        # Run projections command
+        if not run_command(cmd, f"Running near-term projections for {species}", cwd=scripts_path):
+            print(f"✗ Near-term projections failed for {species}", file=sys.stderr)
+            return False
+        
+        print(f"✓ Near-term projections completed for {species}")
+    
+    return True
+
+
+def run_nearterm_projections_sch(species_list, args):
+    """Run near-term projections for SCH species."""
+    base_path = "/ntdmc/sth-sch-amis-integration" if os.path.exists('/.dockerenv') else "."
+    scripts_path = f"{base_path}/projections/scripts"
+    
+    # Determine which species to process
+    species_to_process = []
+    if SCHSpecies.ALL in species_list:
+        species_to_process = ["haematobium", "mansoni_low_burden", "mansoni_high_burden"]
+    else:
+        species_to_process = [s.value for s in species_list]
+    
+    # Process each species
+    for species in species_to_process:
+        print(f"\nRunning near-term projections for SCH species: {species}")
+        
+        # Build command with base arguments
+        cmd_parts = [
+            "python", "sch_projections_per_IU.py",
+            "--species", species
+        ]
+        
+        # Add batch ID - required for projections
+        if args.id:
+            cmd_parts.extend(["--id", str(args.id)])
+        else:
+            print("Error: --id is required for nearterm-projections stage", file=sys.stderr)
+            return False
+        
+        # Add number of cores if provided
+        if args.num_cores:
+            cmd_parts.extend(["--num-cores", str(args.num_cores)])
+        
+        cmd = " ".join(cmd_parts)
+        
+        # Run projections command
+        if not run_command(cmd, f"Running near-term projections for {species}", cwd=scripts_path):
+            print(f"✗ Near-term projections failed for {species}", file=sys.stderr)
+            return False
+        
+        print(f"✓ Near-term projections completed for {species}")
+    
+    return True
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Run STH/SCH fitting and projections pipeline stages",
@@ -523,11 +613,29 @@ Examples:
             sys.exit(1)
     
     elif stage == Stage.NEARTERM_PROJECTIONS:
-        print("Near-term projections stage not yet implemented")
-        sys.exit(1)
+        success = True
+        
+        # Validate required arguments for nearterm-projections
+        if args.id is None:
+            print("Error: --id is required for nearterm-projections stage", file=sys.stderr)
+            sys.exit(1)
+        
+        if sth_species:
+            print(f"\nRunning nearterm-projections for STH species: {[s.value for s in sth_species]}")
+            success = success and run_nearterm_projections_sth(sth_species, args)
+        
+        if sch_species:
+            print(f"\nRunning nearterm-projections for SCH species: {[s.value for s in sch_species]}")
+            success = success and run_nearterm_projections_sch(sch_species, args)
+        
+        if success:
+            print("\nNear-term projections completed successfully!")
+        else:
+            print("\nNear-term projections failed!", file=sys.stderr)
+            sys.exit(1)
     
     elif stage == Stage.ALL:
-        print("Running complete pipeline: fitting-prep → fitting → projections-prep")
+        print("Running complete pipeline: fitting-prep → fitting → projections-prep → nearterm-projections")
         success = True
         
         # Stage 1: Fitting-prep
@@ -586,12 +694,29 @@ Examples:
             print("\nProjections preparation failed!", file=sys.stderr)
             sys.exit(1)
         
-        # Stage 4: Near-term projections (not yet implemented)
+        # Stage 4: Near-term projections
         print(f"\n{'='*60}")
         print("STAGE 4: NEAR-TERM PROJECTIONS")
         print(f"{'='*60}")
-        print("⚠️  Near-term projections stage not yet implemented - skipping")
-        print("✅ Pipeline completed successfully through projections-prep stage!")
+        
+        # Validate required arguments for nearterm-projections
+        if args.id is None:
+            print("Error: --id is required for nearterm-projections stage", file=sys.stderr)
+            sys.exit(1)
+        
+        if sth_species:
+            print(f"Running nearterm-projections for STH species: {[s.value for s in sth_species]}")
+            success = success and run_nearterm_projections_sth(sth_species, args)
+        
+        if sch_species:
+            print(f"Running nearterm-projections for SCH species: {[s.value for s in sch_species]}")
+            success = success and run_nearterm_projections_sch(sch_species, args)
+        
+        if not success:
+            print("\nNear-term projections failed!", file=sys.stderr)
+            sys.exit(1)
+        
+        print("✅ Complete pipeline executed successfully!")
         
         print(f"\n{'='*60}")
         print("COMPLETE PIPELINE SUMMARY")
@@ -599,7 +724,7 @@ Examples:
         print("✅ fitting-prep: COMPLETED")
         print("✅ fitting: COMPLETED") 
         print("✅ projections-prep: COMPLETED")
-        print("⚠️  nearterm-projections: SKIPPED (not implemented)")
+        print("✅ nearterm-projections: COMPLETED")
         print(f"{'='*60}")
     
     elif stage == Stage.SKIP_FITTING_PREP:

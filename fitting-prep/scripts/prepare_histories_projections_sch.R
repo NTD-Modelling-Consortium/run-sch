@@ -168,7 +168,9 @@ for (species in species_sch){
     load(file.path(kPathToMapsArtefacts, "iu_task_lookup_haema.rds"))
     id_no_mda = c(1124,1227)
   } else {
-    load(file.path(kPathToMapsArtefacts, "iu_task_lookup_mansoni.rds"))
+    # For mansoni, use the species_input which has the variant (mansoni_low_burden or mansoni_high_burden)
+    lookup_file <- paste0("iu_task_lookup_", species_input, ".rds")
+    load(file.path(kPathToMapsArtefacts, lookup_file))
     id_no_mda = c(1088,1204)
   }
   

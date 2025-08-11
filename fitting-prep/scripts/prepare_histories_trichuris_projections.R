@@ -216,12 +216,22 @@ cat(paste0("Number of batches for projections: ", num_batches, "\n"))
 
 # Determine which batches to process
 if (!is.null(opts$id)) {
-  # Validate single batch ID
-  if (opts$id > num_batches || opts$id < 1) {
-    stop(paste("Specified batch ID", opts$id, "is out of range. Valid range: 1 to", num_batches))
+  # When --id is specified, it refers to the original fitting TaskID
+  # Find IUs that were in that original batch
+  original_task_ius <- iu_task_lookup %>%
+    filter(TaskID == opts$id) %>%
+    pull(IU_2021)
+  
+  if (length(original_task_ius) == 0) {
+    stop(paste("No IUs found for original TaskID", opts$id))
   }
-  batch_ids <- opts$id
-  cat(paste0("Processing single batch ID: ", opts$id, "\n"))
+  
+  # Find the new projection batch IDs for these IUs
+  batch_ids <- proj_iu_task_lookup %>%
+    filter(IU_2021 %in% original_task_ius) %>%
+    pull(TaskID)
+  
+  cat(paste0("Processing single batch ID: ", opts$id, " (", length(original_task_ius), " IUs mapped to projection batches: ", paste(batch_ids, collapse=", "), ")\n"))
 } else {
   batch_ids <- 1:num_batches
   cat(paste0("Processing all ", num_batches, " batches\n"))

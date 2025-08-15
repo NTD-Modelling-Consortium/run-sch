@@ -26,7 +26,7 @@ RUN apt update && apt install -y \
     libudunits2-dev
 
 RUN conda install --override-channels -c conda-forge -c r --yes --name base \
-    python=3.10 \
+    python=3.10.4 \
     pandas \
     joblib \
     r-base \
@@ -48,6 +48,9 @@ RUN conda install --override-channels -c conda-forge -c r --yes --name base \
     r-writexl \
     r-pracma \
     r-mvtnorm
+
+# Verify Python version and force reinstall if needed
+RUN python --version && python -c "import sys; assert sys.version_info[:2] == (3, 10) and sys.version_info[2] == 4, f'Wrong Python version: {sys.version}'"
 
 # Cannot activate the conda environment easily
 # So instead adjust shell to run everything inside Conda
@@ -84,6 +87,7 @@ ADD Maps-SCH ${FITTING_PREP_DIR}/inputs/Maps-SCH
 ADD ESPEN_IU_2021 ${FITTING_PREP_DIR}/inputs/ESPEN_IU_2021
 
 # Get STH/SCH model
+# Note: Using updateImportation branch as run-amis-fitting has file path bug
 ADD --keep-git-dir git@github.com:NTD-Modelling-Consortium/ntd-model-sch.git#updateImportation ${STH_SCH_MODEL_DIR}
 RUN cd ${STH_SCH_MODEL_DIR}
 

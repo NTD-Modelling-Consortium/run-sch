@@ -78,7 +78,9 @@ if(species == "trichuris"){
 }else if (species == "haematobium"){
   load(file.path(kPathToMapsArtefacts, "iu_task_lookup_haema.rds"))
 } else {
-  load(file.path(kPathToMapsArtefacts, "iu_task_lookup_mansoni.rds"))
+  # For mansoni, use the species-specific filename with variant
+  lookup_file <- paste0("iu_task_lookup_", species, ".rds")
+  load(file.path(kPathToMapsArtefacts, lookup_file))
 }
  
 num_batches <- max(iu_task_lookup$TaskID)

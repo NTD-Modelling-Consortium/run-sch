@@ -229,8 +229,8 @@ def run_projections_for_iu(iu, country, species, species_prefix, args):
     # File paths
     demog_name = "UgandaRural"
     coverage_text_file_storage_name = path_to_projections_prep_artefacts / f"Man_MDA_vacc/Man_MDA_vacc_{species}_{iu}.txt"
-    # Parameter file is in the model package
-    param_file_name = path_to_model / f"sch_simulation/data/STH_params/{species}_params_projections.txt"
+    # Parameter file is in the model package - loadParameters expects just the filename relative to data/
+    param_file_name = f"STH_params/{species}_params_projections.txt"
     
     # Parameters file path
     rk_file_path = path_to_projections_prep_artefacts / f"InputPars_MTP_{species}/InputPars_MTP_{iu}.csv"
@@ -244,11 +244,11 @@ def run_projections_for_iu(iu, country, species, species_prefix, args):
     num_sims = 200
     
     # Read in parameter and coverage files
-    _ = file_parsing.parse_coverage_input(coverage_file_path, coverage_text_file_storage_name)
+    _ = file_parsing.parse_coverage_input(coverage_file_path, str(coverage_text_file_storage_name))
     # Initialize the parameters
     params = loadParameters(param_file_name, demog_name)
     # Add coverage data to parameters file
-    params = file_parsing.readCoverageFile(coverage_text_file_storage_name, params)
+    params = file_parsing.readCoverageFile(str(coverage_text_file_storage_name), params)
     # Add vector control data to parameters
     params = file_parsing.parse_vector_control_input(coverage_file_path, params)
     
@@ -284,18 +284,18 @@ def run_projections_for_iu(iu, country, species, species_prefix, args):
     
     # Create output directory structure
     output_dir = path_to_artefacts / "projections" / species / country / f"{country}{str(iu).zfill(5)}"
-    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(str(output_dir), exist_ok=True)
 
     # Output pickle file, we want outputs like <ascaris-folder>/AGO/AGO02049/Asc_AGO02049.p
     pickle_file_path = output_dir / f"{species_prefix}{country}{str(iu).zfill(5)}.p"
     print(f"Saving pickle file: {pickle_file_path}")
-    pickle.dump(simData, open(pickle_file_path, "wb"))
+    pickle.dump(simData, open(str(pickle_file_path), "wb"))
     
     # Output prevalence dataset
     NTDMC = constructNTDMCResults(params, res, start_year)
     prev_dataset_file_path = output_dir / f"PrevDataset_{species_prefix}{country}{str(iu).zfill(5)}.csv"
     print(f"Saving prevalence dataset: {prev_dataset_file_path}")
-    NTDMC.to_csv(prev_dataset_file_path, index=False)
+    NTDMC.to_csv(str(prev_dataset_file_path), index=False)
     
     print(f"✓ Finished projections for {species} in IU {iu}")
     return True

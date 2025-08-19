@@ -4,12 +4,7 @@ import os
 import subprocess
 import sys
 import enum
-import json
-import glob
-import tempfile
-from datetime import datetime
 from pathlib import Path
-from io import StringIO
 from typing import Dict, List, Set, Optional
 from dataclasses import dataclass
 
@@ -83,10 +78,56 @@ def _get_species_list(species_enums: List) -> List[str]:
     return list(set(species_strings))  # Remove duplicates
 
 
+def parse_species_arguments(args, disease):
+    """Parse and validate species arguments for both STH and SCH diseases."""
+    sth_species = []
+    sch_species = []
+
+    def parse_species_string(species_string):
+        """Parse comma-separated or space-separated species string."""
+        if not species_string:
+            return []
+        
+        if "," in species_string:
+            return [s.strip() for s in species_string.split(",")]
+        else:
+            return species_string.split()
+
+    def validate_species_choices(species_list, valid_species, disease_name):
+        """Validate species choices against valid options."""
+        for species in species_list:
+            if species not in valid_species:
+                print(
+                    f"Error: Invalid {disease_name} species '{species}'. Valid choices: {valid_species}",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+
+    # Parse STH species
+    if disease in [Disease.STH, Disease.ALL]:
+        if args.sth_species:
+            species_list = parse_species_string(args.sth_species)
+            valid_sth_species = [s.value for s in STHSpecies]
+            validate_species_choices(species_list, valid_sth_species, "STH")
+            sth_species = [STHSpecies(s) for s in species_list]
+        else:
+            sth_species = [STHSpecies.ALL]
+
+    # Parse SCH species  
+    if disease in [Disease.SCH, Disease.ALL]:
+        if args.sch_species:
+            species_list = parse_species_string(args.sch_species)
+            valid_sch_species = [s.value for s in SCHSpecies]
+            validate_species_choices(species_list, valid_sch_species, "SCH")
+            sch_species = [SCHSpecies(s) for s in species_list]
+        else:
+            sch_species = [SCHSpecies.ALL]
+
+    return sth_species, sch_species
+
+
 def _get_pipeline_dependencies() -> Dict[Stage, StageDependency]:
     """Define the complete pipeline dependency graph."""
-    base_path = _get_base_path()
-
     return {
         Stage.FITTING_PREP: StageDependency(
             stage=Stage.FITTING_PREP,
@@ -340,385 +381,151 @@ def run_command(command, description=None, cwd=None):
         print(f"Running: {command}")
 
     try:
-        result = subprocess.run(command, shell=True, check=True, cwd=cwd)
+        subprocess.run(command, shell=True, check=True, cwd=cwd)
         return True
-    except subprocess.CalledProcessError as e:
+    except subprocess.CalledProcessError:
         print(f"Error executing command: {command}", file=sys.stderr)
         return False
 
 
-def generate_fitting_manifest(species_list, args, is_sth=True):
-    """Generate a manifest file after fitting stage completion."""
+def generate_fitting_manifest(species_list, args):
+    """Generate comprehensive fitting manifest with failure detection and ESS analysis."""
     base_path = _get_base_path()
     fitting_artefacts = base_path / "fitting" / "artefacts"
-
-    # Determine species to analyze
-    if is_sth:
-        if STHSpecies.ALL in species_list:
-            species_to_analyze = ["ascaris", "hookworm", "trichuris"]
-        else:
-            species_to_analyze = [s.value for s in species_list]
-    else:
-        if SCHSpecies.ALL in species_list:
-            species_to_analyze = [
-                "haematobium",
-                "mansoni_low_burden",
-                "mansoni_high_burden",
-            ]
-        else:
-            species_to_analyze = [s.value for s in species_list]
-
-    all_manifests = []
-
+    
+    species_to_analyze = _get_species_list(species_list)
+    failed_batches = []
+    successful_batches = []
+    
+    print(f"\n📋 FITTING MANIFEST - Batch {args.id}")
+    print("=" * 50)
+    
     for species in species_to_analyze:
-        print(f"\nGenerating fitting manifest for {species}...")
-
-        manifest = {
-            "species": species,
-            "sigma": str(args.amis_sigma) if args.amis_sigma else "0.0025",
-            "timestamp": datetime.now().isoformat(),
-            "batch_id": args.id,
-            "ius_in_batch": [],
-            "batches_processed": [],
-            "successful_batches": [],
-            "failed_batches": [],
-            "low_ess_batches": [],
-            "missing_output_files": [],
-            "recommendations": {},
-            "summary": {},
-        }
-
-        # Look for AMIS output files for this species and batch
-        sigma_str = str(args.amis_sigma) if args.amis_sigma else "0.0025"
-        amis_pattern = (
-            fitting_artefacts / f"fit_amis_{species}_{args.id}_sigma{sigma_str}.RData"
-        )
-        amis_files = glob.glob(str(amis_pattern))
-
-        if amis_files:
-            manifest["batches_processed"].append(args.id)
-            manifest["successful_batches"].append(args.id)
-
-            # Try to read ESS information from R using subprocess
+        # Use correct file pattern matching our Docker scripts
+        sigma_suffix = f"_sigma{args.amis_sigma}" if args.amis_sigma and args.amis_sigma != 0.0025 else ""
+        amis_file = fitting_artefacts / "AMIS_output" / f"{species}_amis_output{args.id}{sigma_suffix}.Rdata"
+        
+        print(f"\n🔬 {species.upper()}")
+        
+        if amis_file.exists():
+            # Try to analyze ESS for operational insights
             try:
-                # Create a temporary R script to read AMIS output and extract ESS
-                r_script = f"""
-                library("AMISforInfectiousDiseases")
-                
-                # Load lookup table to get IU count expectation
-                base_path <- "{base_path}"
-                kPathToMapsArtefacts <- file.path(base_path, "fitting-prep/artefacts/Maps")
-                
-                if("{species}" == "trichuris") {{
-                  load(file.path(kPathToMapsArtefacts, "iu_task_lookup_trichuris.rds"))
-                }} else if ("{species}" %in% c("ascaris","hookworm")) {{
-                  load(file.path(kPathToMapsArtefacts, "iu_task_lookup_sth.rds"))  
-                }} else if ("{species}" == "haematobium") {{
-                  load(file.path(kPathToMapsArtefacts, "iu_task_lookup_haema.rds"))
-                }} else {{
-                  lookup_file <- paste0("iu_task_lookup_", "{species}", ".rds")
-                  load(file.path(kPathToMapsArtefacts, lookup_file))
-                }}
-                
-                # Get expected IU count for this batch
-                if("{species}" %in% c("ascaris", "hookworm", "trichuris")) {{
-                  expected_ius <- iu_task_lookup[iu_task_lookup$TaskID == {args.id}, "IU_2021"]
-                }} else {{
-                  expected_ius <- iu_task_lookup[iu_task_lookup$TaskID == {args.id}, "IU_ID"]
-                }}
-                expected_count <- length(expected_ius)
-                
-                # Load AMIS output
-                amis_file <- "{amis_files[0]}"
-                if(file.exists(amis_file)) {{
-                  load(amis_file)  # loads amis_output
-                  
-                  if(exists("amis_output") && !is.null(amis_output$ess)) {{
+                import subprocess
+                r_check = f"""
+                load("{amis_file}")
+                if(exists("amis_output") && !is.null(amis_output$ess)) {{
                     ess_values <- amis_output$ess
-                    min_ess <- min(ess_values, na.rm=TRUE)
-                    max_ess <- max(ess_values, na.rm=TRUE)
-                    avg_ess <- mean(ess_values, na.rm=TRUE)
-                    low_ess_count <- sum(ess_values < 200, na.rm=TRUE)
-                    total_ius <- length(ess_values)
-                    
-                    cat("ESS_ANALYSIS:", min_ess, max_ess, avg_ess, low_ess_count, total_ius, expected_count, "\\n")
-                  }} else {{
-                    cat("ESS_ANALYSIS: ERROR - No ESS data found\\n")
-                  }}
+                    cat("ESS_SUMMARY:", length(ess_values), "IUs,", 
+                        "min:", round(min(ess_values), 1), 
+                        "max:", round(max(ess_values), 1), 
+                        "mean:", round(mean(ess_values), 1),
+                        "below_threshold:", sum(ess_values < {args.ess_threshold}))
                 }} else {{
-                  cat("ESS_ANALYSIS: ERROR - File not found\\n")
+                    cat("ESS_UNAVAILABLE")
                 }}
                 """
-
-                # Write and execute R script using temporary file
-                with tempfile.NamedTemporaryFile(
-                    mode="w",
-                    suffix=".R",
-                    prefix=f"temp_ess_analysis_{species}_",
-                ) as temp_file:
-                    temp_file.write(r_script)
-                    temp_file.flush()
-
-                    result = subprocess.run(
-                        ["Rscript", temp_file.name],
-                        capture_output=True,
-                        text=True,
-                        cwd=str(fitting_artefacts),
-                    )
-
-                if result.returncode == 0:
-                    # Parse ESS analysis output
-                    for line in result.stdout.split("\n"):
-                        if line.startswith("ESS_ANALYSIS:"):
-                            parts = line.split()
-                            if len(parts) >= 7 and parts[1] != "ERROR":
-                                min_ess = float(parts[1])
-                                max_ess = float(parts[2])
-                                avg_ess = float(parts[3])
-                                low_ess_count = int(parts[4])
-                                total_ius = int(parts[5])
-                                expected_count = int(parts[6])
-
-                                manifest["summary"] = {
-                                    "total_ius_processed": total_ius,
-                                    "expected_ius": expected_count,
-                                    "processing_complete": total_ius == expected_count,
-                                    "min_ess": round(min_ess, 2),
-                                    "max_ess": round(max_ess, 2),
-                                    "avg_ess": round(avg_ess, 2),
-                                    "low_ess_ius": low_ess_count,
-                                    "low_ess_percentage": (
-                                        round(100 * low_ess_count / total_ius, 1)
-                                        if total_ius > 0
-                                        else 0
-                                    ),
-                                }
-
-                                if low_ess_count > 0:
-                                    manifest["low_ess_batches"].append(args.id)
-                                    manifest["recommendations"][
-                                        "rerun_with_higher_sigma"
-                                    ] = [args.id]
-                                    manifest["recommendations"][
-                                        "suggested_sigma"
-                                    ] = "0.025"
-                                    manifest["recommendations"][
-                                        "reason"
-                                    ] = f"{low_ess_count} IUs have ESS < 200"
-
-                                break
-                            elif "ERROR" in parts:
-                                manifest["summary"][
-                                    "error"
-                                ] = "Could not analyze ESS data"
-                                break
-
-            except Exception as e:
-                manifest["summary"]["error"] = f"ESS analysis failed: {str(e)}"
-        else:
-            # No output files found - batch failed
-            manifest["failed_batches"].append(args.id)
-            manifest["missing_output_files"].append(
-                f"fit_amis_{species}_{args.id}_sigma{sigma_str}.RData"
-            )
-            manifest["recommendations"]["rerun_batch"] = [args.id]
-            manifest["recommendations"][
-                "reason"
-            ] = "No AMIS output file found - batch likely failed"
-
-        # Set final recommendations
-        if manifest["failed_batches"] or manifest["low_ess_batches"]:
-            if manifest["failed_batches"]:
-                manifest["recommendations"]["action"] = "rerun_failed_batches"
-                manifest["recommendations"]["suggested_sigma"] = "0.025"
-            elif manifest["low_ess_batches"]:
-                manifest["recommendations"]["action"] = "rerun_low_ess_batches"
-                manifest["recommendations"]["suggested_sigma"] = "0.025"
-        else:
-            manifest["recommendations"]["action"] = "none_needed"
-            manifest["recommendations"][
-                "message"
-            ] = "All batches completed successfully with adequate ESS"
-
-        # Save manifest
-        manifest_file = (
-            fitting_artefacts
-            / f"fitting_manifest_{species}_{args.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-        )
-        manifest_file.write_text(json.dumps(manifest, indent=2))
-
-        all_manifests.append(manifest)
-
-        # Print summary to user
-        print(f"📊 Fitting Summary for {species} (Batch {args.id}):")
-        if manifest["successful_batches"]:
-            if "total_ius_processed" in manifest["summary"]:
-                summary = manifest["summary"]
-                print(
-                    f"   ✓ Processed {summary['total_ius_processed']} IUs successfully"
+                
+                result = subprocess.run(
+                    ["Rscript", "-e", r_check], 
+                    capture_output=True, text=True, timeout=10
                 )
-                print(
-                    f"   📈 ESS: min={summary['min_ess']}, max={summary['max_ess']}, avg={summary['avg_ess']}"
-                )
-                if summary["low_ess_ius"] > 0:
-                    print(
-                        f"   ⚠️  {summary['low_ess_ius']} IUs ({summary['low_ess_percentage']}%) have ESS < 200"
-                    )
+                
+                if result.returncode == 0 and "ESS_SUMMARY:" in result.stdout:
+                    ess_info = result.stdout.split("ESS_SUMMARY:")[1].strip()
+                    print(f"   ✅ AMIS output: {amis_file.name}")
+                    print(f"   📊 ESS: {ess_info}")
+                    
+                    # Check if any IUs need retry with higher sigma
+                    if "below_threshold:" in ess_info and int(ess_info.split("below_threshold:")[-1].strip()) > 0:
+                        below_count = int(ess_info.split("below_threshold:")[-1].strip())
+                        print(f"   ⚠️  {below_count} IUs with ESS < {args.ess_threshold} - consider --amis-sigma=0.025")
                 else:
-                    print(f"   ✅ All IUs have adequate ESS (≥200)")
-            else:
-                print(f"   ✓ AMIS output file generated")
-
-        if manifest["failed_batches"]:
-            print(f"   ❌ Batch failed - no output file generated")
-
-        if manifest["recommendations"]["action"] != "none_needed":
-            print(f"   💡 Recommendation: {manifest['recommendations']['action']}")
-            if "suggested_sigma" in manifest["recommendations"]:
-                print(
-                    f"      Retry with: --amis-sigma={manifest['recommendations']['suggested_sigma']}"
-                )
-
-        print(f"   📄 Manifest saved: {manifest_file.name}")
-
-    return all_manifests
-
-
-def load_species_lookup_table(species, base_path):
-    """Load the appropriate lookup table for the given species."""
-    base_path = Path(base_path)
-    maps_path = base_path / "fitting-prep" / "artefacts" / "Maps"
-
-    # Determine which lookup file to use based on species
-    if species == "trichuris":
-        lookup_file = maps_path / "iu_task_lookup_trichuris.rds"
-    elif species in ["ascaris", "hookworm"]:
-        lookup_file = maps_path / "iu_task_lookup_sth.rds"
-    elif species == "haematobium":
-        lookup_file = maps_path / "iu_task_lookup_haema.rds"
-    elif species in ["mansoni_low_burden", "mansoni_high_burden"]:
-        lookup_file = maps_path / f"iu_task_lookup_{species}.rds"
-    else:
-        raise ValueError(f"Unsupported species: {species}")
-
-    if not lookup_file.exists():
-        raise FileNotFoundError(f"Lookup file not found: {lookup_file}")
-
-    # Use R to read the RDS file and convert to CSV
-    r_script = f"""
-    load("{lookup_file}")
+                    print(f"   ✅ AMIS output: {amis_file.name}")
+                    print(f"   ℹ️  ESS analysis unavailable")
+                    
+                successful_batches.append(f"{species}_{args.id}")
+                
+            except Exception:
+                print(f"   ✅ AMIS output: {amis_file.name}")
+                print(f"   ℹ️  ESS analysis skipped")
+                successful_batches.append(f"{species}_{args.id}")
+        else:
+            print(f"   ❌ Missing: {amis_file.name}")
+            print(f"   💡 Retry: --stage=fitting --id={args.id} --amis-sigma=0.025")
+            failed_batches.append(f"{species}_{args.id}")
     
-    # Standardize column names
-    if("{species}" %in% c("ascaris", "hookworm", "trichuris")) {{
-        # STH species use IU_2021 column
-        if(!"IU_CODE" %in% colnames(iu_task_lookup)) {{
-            iu_task_lookup$IU_CODE <- iu_task_lookup$IU_2021
-        }}
-    }} else {{
-        # SCH species use IU_ID column  
-        if(!"IU_CODE" %in% colnames(iu_task_lookup)) {{
-            iu_task_lookup$IU_CODE <- iu_task_lookup$IU_ID
+    # Provide actionable summary
+    print(f"\n📊 SUMMARY")
+    print(f"   ✅ Successful: {len(successful_batches)}")  
+    print(f"   ❌ Failed: {len(failed_batches)}")
+    
+    if failed_batches:
+        print(f"\n🔄 For find_lowESS_ids.R script:")
+        failed_ids = [b.split('_')[-1] for b in failed_batches]
+        print(f"   --failed-ids={','.join(failed_ids)}")
+    
+    return failed_batches
+
+
+def generate_task_iu_mapping(base_path: Path, output_file="task_iu_mapping.csv"):
+    """Generate a simple task mapping by calling R script directly."""
+    print("\n🗺️  Generating Task ID to IU mapping...")
+    
+    # Simple R script to combine all lookup tables
+    r_script = f"""
+    library(dplyr)
+    base_path <- "{base_path}"
+    maps_path <- file.path(base_path, "fitting-prep/artefacts/Maps")
+    
+    all_data <- list()
+    species_info <- list(
+        list(name = "ascaris", file = "iu_task_lookup_sth.rds", iu_col = "IU_2021"),
+        list(name = "hookworm", file = "iu_task_lookup_sth.rds", iu_col = "IU_2021"),
+        list(name = "trichuris", file = "iu_task_lookup_trichuris.rds", iu_col = "IU_2021"),
+        list(name = "haematobium", file = "iu_task_lookup_haema.rds", iu_col = "IU_ID"),
+        list(name = "mansoni_low_burden", file = "iu_task_lookup_mansoni_low_burden.rds", iu_col = "IU_ID"),
+        list(name = "mansoni_high_burden", file = "iu_task_lookup_mansoni_high_burden.rds", iu_col = "IU_ID")
+    )
+    
+    for (info in species_info) {{
+        lookup_file <- file.path(maps_path, info$file)
+        if (file.exists(lookup_file)) {{
+            load(lookup_file)
+            df <- data.frame(
+                TaskID = iu_task_lookup$TaskID,
+                IU_CODE = iu_task_lookup[[info$iu_col]],
+                Species = info$name,
+                stringsAsFactors = FALSE
+            )
+            all_data[[info$name]] <- df
+            cat("   ✓ Found", nrow(df), "entries for", info$name, "\\n")
+        }} else {{
+            cat("   ⚠️ Could not find", lookup_file, "\\n")
         }}
     }}
     
-    # Output as CSV to stdout
-    write.csv(iu_task_lookup, stdout(), row.names=FALSE)
+    if (length(all_data) > 0) {{
+        combined_df <- do.call(rbind, all_data)
+        output_path <- file.path(base_path, "fitting-prep/artefacts", "{output_file}")
+        write.csv(combined_df, output_path, row.names = FALSE)
+        cat("   📄 Mapping saved to:", "{output_file}", "\\n")
+        cat("   📊 Total entries:", nrow(combined_df), "\\n")
+        cat("   📈 Species coverage:", length(unique(combined_df$Species)), "species\\n")
+        cat("SUCCESS\\n")
+    }} else {{
+        cat("ERROR: No lookup tables found\\n")
+    }}
     """
-
+    
     # Execute R script
     result = subprocess.run(
         ["Rscript", "-e", r_script], capture_output=True, text=True, cwd=str(base_path)
     )
-
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"Failed to read lookup table for {species}: {result.stderr}"
-        )
-
-    # Parse CSV output
-    import pandas as pd
-
-    df = pd.read_csv(StringIO(result.stdout))
-    # Add species column
-    df["Species"] = species
-    return df
+    
+    return "SUCCESS" in result.stdout
 
 
-def generate_task_iu_mapping(base_path: Path, output_file="task_iu_mapping.csv"):
-    """Generate comprehensive TaskID to IU mapping for all species."""
-
-    all_species = [
-        "ascaris",
-        "hookworm",
-        "trichuris",  # STH species
-        "haematobium",
-        "mansoni_low_burden",
-        "mansoni_high_burden",  # SCH species
-    ]
-
-    print("\n🗺️  Generating comprehensive Task ID to IU mapping...")
-
-    all_mappings = []
-
-    for species in all_species:
-        try:
-            print(f"   Processing {species}...")
-            df = load_species_lookup_table(species, str(base_path))
-            all_mappings.append(df)
-            print(f"     ✓ Found {len(df)} entries for {species}")
-        except (FileNotFoundError, RuntimeError) as e:
-            print(f"     ⚠️ Could not process {species}: {e}")
-            continue
-
-    if not all_mappings:
-        print("   ❌ No lookup tables could be processed")
-        return False
-
-    try:
-        import pandas as pd
-
-        # Combine all mappings using pandas
-        combined_df = pd.concat(all_mappings, ignore_index=True)
-
-        # Standardize column names and order
-        columns_to_keep = ["TaskID", "IU_CODE", "Species"]
-
-        # Add additional columns if they exist
-        if "Country" in combined_df.columns:
-            columns_to_keep.append("Country")
-        elif "country" in combined_df.columns:
-            combined_df["Country"] = combined_df["country"]
-            columns_to_keep.append("Country")
-
-        # Keep only relevant columns
-        available_columns = [
-            col for col in columns_to_keep if col in combined_df.columns
-        ]
-        final_df = combined_df[available_columns].copy()
-
-        # Sort by Species, then TaskID, then IU_CODE
-        final_df = final_df.sort_values(["Species", "TaskID", "IU_CODE"]).reset_index(
-            drop=True
-        )
-
-        # Save to CSV
-        output_path = base_path / "fitting-prep" / "artefacts" / output_file
-        final_df.to_csv(str(output_path), index=False)
-
-        print(f"   📄 Mapping saved to: {output_file}")
-        print(f"   📊 Total entries: {len(final_df)}")
-        print(
-            f"   📈 Species coverage: {len(final_df['Species'].unique())} species, {final_df['TaskID'].nunique()} total batches"
-        )
-
-        return True
-
-    except Exception as e:
-        print(f"   ❌ Error generating mapping: {e}")
-        return False
-
-
-def _run_fitting_prep_sth_impl(species_list, batch_id, base_path, scripts_path):
+def _run_fitting_prep_sth_impl(species_list, batch_id, scripts_path):
     """Run fitting preparation for STH species."""
 
     commands = []
@@ -789,7 +596,7 @@ def _run_fitting_prep_sth_impl(species_list, batch_id, base_path, scripts_path):
     return True
 
 
-def _run_fitting_prep_sch_impl(species_list, batch_id, base_path, scripts_path):
+def _run_fitting_prep_sch_impl(species_list, batch_id, scripts_path):
     """Run fitting preparation for SCH species."""
 
     commands = []
@@ -933,9 +740,7 @@ def run_fitting(sth_species_list, sch_species_list, args):
 
         # Generate fitting manifests
         if species_to_fit:  # Only generate if we processed species
-            generate_fitting_manifest(
-                config["species_list"], args, is_sth=config["is_sth"]
-            )
+            generate_fitting_manifest(config["species_list"], args)
 
     return True
 
@@ -1078,24 +883,50 @@ def run_nearterm_projections(sth_species_list, sch_species_list, args):
     return True
 
 
-def execute_pipeline_stages(stages, sth_species, sch_species, args):
-    """Execute a sequence of pipeline stages with unified logic."""
+def execute_single_stage(stage, sth_species, sch_species, args):
+    """Execute a single pipeline stage with unified validation and error handling."""
     # Stage function mapping
     stage_functions = {
         Stage.FITTING_PREP: lambda: run_fitting_prep(sth_species, sch_species, args),
         Stage.FITTING: lambda: run_fitting(sth_species, sch_species, args),
-        Stage.PROJECTIONS_PREP: lambda: run_projections_prep(
-            sth_species, sch_species, args
-        ),
-        Stage.NEARTERM_PROJECTIONS: lambda: run_nearterm_projections(
-            sth_species, sch_species, args
-        ),
+        Stage.PROJECTIONS_PREP: lambda: run_projections_prep(sth_species, sch_species, args),
+        Stage.NEARTERM_PROJECTIONS: lambda: run_nearterm_projections(sth_species, sch_species, args),
     }
+    
+    # Success messages
+    success_messages = {
+        Stage.FITTING_PREP: "Fitting preparation completed successfully!",
+        Stage.FITTING: "Fitting completed successfully!",
+        Stage.PROJECTIONS_PREP: "Projections preparation completed successfully!",
+        Stage.NEARTERM_PROJECTIONS: "Near-term projections completed successfully!",
+    }
+    
+    # Validate dependencies (except for fitting-prep)
+    if stage != Stage.FITTING_PREP:
+        all_species = sth_species + sch_species
+        if not validate_stage_dependencies(stage, all_species, args.id, args.amis_sigma):
+            print(f"\n❌ Dependencies not satisfied for stage: {stage.value}", file=sys.stderr)
+            return False
+    
+    # Validate required arguments
+    if stage in [Stage.FITTING, Stage.NEARTERM_PROJECTIONS] and args.id is None:
+        print(f"Error: --id is required for {stage.value} stage", file=sys.stderr)
+        return False
+    
+    # Execute the stage
+    if stage_functions[stage]():
+        print(f"\n{success_messages[stage]}")
+        return True
+    else:
+        print(f"\n{stage.value.title()} failed!", file=sys.stderr)
+        return False
 
-    # Stage display names
+
+def execute_pipeline_stages(stages, sth_species, sch_species, args):
+    """Execute a sequence of pipeline stages with unified logic."""
     stage_names = {
         Stage.FITTING_PREP: "FITTING-PREP",
-        Stage.FITTING: "FITTING",
+        Stage.FITTING: "FITTING", 
         Stage.PROJECTIONS_PREP: "PROJECTIONS-PREP",
         Stage.NEARTERM_PROJECTIONS: "NEAR-TERM PROJECTIONS",
     }
@@ -1105,26 +936,7 @@ def execute_pipeline_stages(stages, sth_species, sch_species, args):
         print(f"STAGE {i}: {stage_names[stage]}")
         print(f"{'='*60}")
 
-        # Validate dependencies (except for fitting-prep which has no deps)
-        if stage != Stage.FITTING_PREP:
-            all_species = sth_species + sch_species
-            if not validate_stage_dependencies(
-                stage, all_species, args.id, args.amis_sigma
-            ):
-                print(
-                    f"\n❌ Dependencies not satisfied for stage: {stage.value}",
-                    file=sys.stderr,
-                )
-                return False
-
-        # Validate required arguments for specific stages
-        if stage in [Stage.FITTING, Stage.NEARTERM_PROJECTIONS] and args.id is None:
-            print(f"Error: --id is required for {stage.value} stage", file=sys.stderr)
-            return False
-
-        # Execute the stage
-        if not stage_functions[stage]():
-            print(f"\n{stage_names[stage]} failed!", file=sys.stderr)
+        if not execute_single_stage(stage, sth_species, sch_species, args):
             return False
 
     return True
@@ -1141,7 +953,7 @@ def run_fitting_prep(sth_species_list, sch_species_list, args):
             f"\nRunning fitting-prep for STH species: {[s.value for s in sth_species_list]}"
         )
         success = success and _run_fitting_prep_sth_impl(
-            sth_species_list, args.id, base_path, scripts_path
+            sth_species_list, args.id, scripts_path
         )
 
     if sch_species_list:
@@ -1149,7 +961,7 @@ def run_fitting_prep(sth_species_list, sch_species_list, args):
             f"\nRunning fitting-prep for SCH species: {[s.value for s in sch_species_list]}"
         )
         success = success and _run_fitting_prep_sch_impl(
-            sch_species_list, args.id, base_path, scripts_path
+            sch_species_list, args.id, scripts_path
         )
 
     if success:
@@ -1228,135 +1040,14 @@ Examples:
 
     # Parse disease and species selections
     disease = Disease(args.disease)
-
-    # Determine which species to process
-    sth_species = []
-    sch_species = []
-
-    if disease in [Disease.STH, Disease.ALL]:
-        if args.sth_species:
-            # Handle comma-separated or space-separated species
-            species_list = []
-            if "," in args.sth_species:
-                species_list = [s.strip() for s in args.sth_species.split(",")]
-            else:
-                species_list = args.sth_species.split()
-
-            # Validate species choices
-            valid_sth_species = [s.value for s in STHSpecies]
-            for species in species_list:
-                if species not in valid_sth_species:
-                    print(
-                        f"Error: Invalid STH species '{species}'. Valid choices: {valid_sth_species}",
-                        file=sys.stderr,
-                    )
-                    sys.exit(1)
-
-            sth_species = [STHSpecies(s) for s in species_list]
-        else:
-            sth_species = [STHSpecies.ALL]
-
-    if disease in [Disease.SCH, Disease.ALL]:
-        if args.sch_species:
-            # Handle comma-separated or space-separated species
-            species_list = []
-            if "," in args.sch_species:
-                species_list = [s.strip() for s in args.sch_species.split(",")]
-            else:
-                species_list = args.sch_species.split()
-
-            # Validate species choices
-            valid_sch_species = [s.value for s in SCHSpecies]
-            for species in species_list:
-                if species not in valid_sch_species:
-                    print(
-                        f"Error: Invalid SCH species '{species}'. Valid choices: {valid_sch_species}",
-                        file=sys.stderr,
-                    )
-                    sys.exit(1)
-
-            sch_species = [SCHSpecies(s) for s in species_list]
-        else:
-            sch_species = [SCHSpecies.ALL]
+    sth_species, sch_species = parse_species_arguments(args, disease)
 
     # Execute the requested stage
     stage = Stage(args.stage)
 
-    # Execute stages based on the selected stage
-    if stage == Stage.FITTING_PREP:
-        success = run_fitting_prep(sth_species, sch_species, args)
-        if success:
-            print("\nFitting preparation completed successfully!")
-        else:
-            print("\nFitting preparation failed!", file=sys.stderr)
-            sys.exit(1)
-
-    elif stage == Stage.FITTING:
-        # Validate dependencies and required arguments
-        all_species = sth_species + sch_species
-        if not validate_stage_dependencies(
-            stage, all_species, args.id, args.amis_sigma
-        ):
-            print(
-                f"\n❌ Dependencies not satisfied for stage: {stage.value}",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-
-        if args.id is None:
-            print("Error: --id is required for fitting stage", file=sys.stderr)
-            sys.exit(1)
-
-        success = run_fitting(sth_species, sch_species, args)
-        if success:
-            print("\nFitting completed successfully!")
-        else:
-            print("\nFitting failed!", file=sys.stderr)
-            sys.exit(1)
-
-    elif stage == Stage.PROJECTIONS_PREP:
-        # Validate dependencies
-        all_species = sth_species + sch_species
-        if not validate_stage_dependencies(
-            stage, all_species, args.id, args.amis_sigma
-        ):
-            print(
-                f"\n❌ Dependencies not satisfied for stage: {stage.value}",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-
-        success = run_projections_prep(sth_species, sch_species, args)
-        if success:
-            print("\nProjections preparation completed successfully!")
-        else:
-            print("\nProjections preparation failed!", file=sys.stderr)
-            sys.exit(1)
-
-    elif stage == Stage.NEARTERM_PROJECTIONS:
-        # Validate dependencies and required arguments
-        all_species = sth_species + sch_species
-        if not validate_stage_dependencies(
-            stage, all_species, args.id, args.amis_sigma
-        ):
-            print(
-                f"\n❌ Dependencies not satisfied for stage: {stage.value}",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-
-        if args.id is None:
-            print(
-                "Error: --id is required for nearterm-projections stage",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-
-        success = run_nearterm_projections(sth_species, sch_species, args)
-        if success:
-            print("\nNear-term projections completed successfully!")
-        else:
-            print("\nNear-term projections failed!", file=sys.stderr)
+    # Execute single stages or multi-stage pipelines
+    if stage in [Stage.FITTING_PREP, Stage.FITTING, Stage.PROJECTIONS_PREP, Stage.NEARTERM_PROJECTIONS]:
+        if not execute_single_stage(stage, sth_species, sch_species, args):
             sys.exit(1)
 
     elif stage == Stage.ALL:

@@ -172,7 +172,11 @@ if(species %in% c("ascaris","hookworm","trichuris")){
   df_IU_country <- read.csv(file.path(kPathToMapsArtefacts, "table_iu_idx_STH.csv")) # same for all species as just want country codes
 } else if (species == "haematobium"){ 
   df_IU_country <- read.csv(file.path(kPathToMapsArtefacts, "table_iu_idx_haematobium.csv"))
+} else if (species %in% c("mansoni_low_burden", "mansoni_high_burden")) {
+  # Handle mansoni variants with species-specific files
+  df_IU_country <- read.csv(file.path(kPathToMapsArtefacts, paste0("table_iu_idx_", species, ".csv")))
 } else {
+  # Fallback for generic mansoni
   df_IU_country <- read.csv(file.path(kPathToMapsArtefacts, "table_iu_idx_mansoni.csv"))
 }
 

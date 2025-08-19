@@ -245,11 +245,9 @@ def run_projections_for_iu(iu, country, species, species_prefix, args):
         path_to_projections_prep_artefacts
         / f"Man_MDA_vacc/Man_MDA_vacc_{species}_{iu}.txt"
     )
-    # Parameter file is in the model package
-    param_file_name = (
-        path_to_model
-        / f"sch_simulation/data/SCH_params/{species}_params_projections.txt"
-    )
+    # Parameter file is in the model package - use projection-specific parameter files
+    # Note: *_params_projections.txt files are copied from updateImportation branch during Docker build
+    param_file_name = f"SCH_params/{species}_params_projections.txt"
 
     # Parameters file path from projections-prep artefacts
     rk_file_path = (
@@ -267,12 +265,12 @@ def run_projections_for_iu(iu, country, species, species_prefix, args):
 
     # Read in parameter and coverage files
     _ = file_parsing.parse_coverage_input(
-        coverage_file_path, coverage_text_file_storage_name
+        coverage_file_path, str(coverage_text_file_storage_name)
     )
     # Initialize the parameters
     params = loadParameters(param_file_name, demog_name)
     # Add coverage data to parameters file
-    params = file_parsing.readCoverageFile(coverage_text_file_storage_name, params)
+    params = file_parsing.readCoverageFile(str(coverage_text_file_storage_name), params)
     # Add vector control data to parameters
     params = file_parsing.parse_vector_control_input(coverage_file_path, params)
 
@@ -314,12 +312,12 @@ def run_projections_for_iu(iu, country, species, species_prefix, args):
         / country
         / f"{country}{str(iu).zfill(5)}"
     )
-    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(str(output_dir), exist_ok=True)
 
     # Output pickle file
     pickle_file_path = output_dir / f"{species_prefix}{country}{str(iu).zfill(5)}.p"
     print(f"Saving pickle file: {pickle_file_path}")
-    pickle.dump(simData, open(pickle_file_path, "wb"))
+    pickle.dump(simData, open(str(pickle_file_path), "wb"))
 
     # Output prevalence dataset
     NTDMC = constructNTDMCResults(params, res, start_year)
@@ -327,7 +325,7 @@ def run_projections_for_iu(iu, country, species, species_prefix, args):
         output_dir / f"PrevDataset_{species_prefix}{country}{str(iu).zfill(5)}.csv"
     )
     print(f"Saving prevalence dataset: {prev_dataset_file_path}")
-    NTDMC.to_csv(prev_dataset_file_path, index=False)
+    NTDMC.to_csv(str(prev_dataset_file_path), index=False)
 
     print(f"✓ Finished projections for {species} in IU {iu}")
     return True
@@ -363,8 +361,11 @@ def main():
     # Determine lookup file based on species
     if species == "haematobium":
         lookup_file_name = "Maps/table_iu_idx_haematobium.csv"
+    elif species in ["mansoni_low_burden", "mansoni_high_burden"]:
+        # Handle mansoni variants with species-specific files
+        lookup_file_name = f"Maps/table_iu_idx_{species}.csv"
     else:
-        # Both mansoni variants use the same lookup table
+        # Fallback for generic mansoni
         lookup_file_name = "Maps/table_iu_idx_mansoni.csv"
 
     lookup_file_path = os.path.join(path_to_fitting_prep, lookup_file_name)

@@ -297,7 +297,7 @@ for (species in species_sch){
   table_iu_idx$TaskID <- as.integer(table_iu_idx$TaskID)
   table_iu_idx$country <- as.character(table_iu_idx$country)
   
-  write.csv(table_iu_idx, file=file.path(kPathToMapsArtefacts, paste0("table_iu_idx_", species, ".csv")), row.names=F)
+  write.csv(table_iu_idx, file=file.path(kPathToMapsArtefacts, paste0("table_iu_idx_", species_input, ".csv")), row.names=F)
   
 }
 

@@ -1,6 +1,6 @@
 # STH/SCH AMIS Pipeline
 
-## 🚀 Quick Start - Three Typical Usage Scenarios
+## 🚀 Quick Start
 
 ### Build Docker Image
 ```bash
@@ -202,7 +202,7 @@ This creates: `ascaris_amis_output10_sigma0.025.Rdata`
 
 **Note**: Projections-prep will automatically use the sigma file for low-ESS IUs.
 
-## 🚨 Common Cloud Deployment Issues
+## 🚨 Common Issues
 
 ### 1. Projections-prep fails: "cannot open compressed file"
 **Error**: `Error: cannot open compressed file 'ascaris_amis_output10_sigma0.0025.Rdata'`

@@ -77,10 +77,6 @@ ADD projections-prep ${PROJECTIONS_PREP_DIR}
 ADD projections ${PROJECTIONS_DIR}
 ADD post_AMIS_analysis ${STH_SCH_AMIS_DIR}/post_AMIS_analysis
 
-# Copy the sth_amis package and pyproject.toml
-ADD sth_amis ${STH_SCH_AMIS_DIR}/sth_amis
-ADD pyproject.toml ${STH_SCH_AMIS_DIR}
-
 # Copy input data directories from Google Cloud Storage
 ADD https://storage.googleapis.com/ntd-data-storage/pipeline/sth/Maps-STH.tar.gz ${FITTING_PREP_DIR}/inputs/Maps-STH.tar.gz
 ADD https://storage.googleapis.com/ntd-data-storage/pipeline/sch/ESPEN_IU_2021.tar.gz ${FITTING_PREP_DIR}/inputs/ESPEN_IU_2021.tar.gz
@@ -126,9 +122,6 @@ ADD --keep-git-dir git@github.com:NTD-Modelling-Consortium/ntd-model-sch.git#upd
 RUN cp -f /tmp/updateImportation/sch_simulation/data/SCH_params/*_params_projections.txt \
     ${STH_SCH_MODEL_DIR}/sch_simulation/data/SCH_params/ || echo "No projection parameter files found in updateImportation"
 RUN rm -rf /tmp/updateImportation
-
-# Install the sth_amis package
-RUN --mount=type=cache,target=/root/.cache/pip cd ${STH_SCH_AMIS_DIR} && pip install -e .
 
 # Set environment variables for all paths
 ENV STH_SCH_AMIS_DIR=${STH_SCH_AMIS_DIR}

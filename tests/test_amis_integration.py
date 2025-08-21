@@ -1,6 +1,7 @@
 import os
 import pytest
-from sth_amis.amis_integration import (
+# Use the package version from sch_simulation instead of local sth_amis
+from sch_simulation.amis_integration.amis_integration import (
     StateSnapshotConfig,
     extract_relevant_results,
     returnYearlyPrevalenceEstimate,

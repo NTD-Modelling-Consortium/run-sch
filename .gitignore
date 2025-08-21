@@ -208,3 +208,9 @@ rsconnect/
 .Rbuildignore
 renv/settings.json
 renv/activate.R
+
+# VS Code workspace file
+*.code-workspace
+
+# Mac
+.DS_Store

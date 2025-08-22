@@ -236,6 +236,198 @@ The pipeline consists of four sequential stages:
 3. **projections-prep**: Prepares data for projections (run per batch)
 4. **nearterm-projections**: Runs projection simulations (run per batch)
 
+## 📊 Pipeline Data Flow Diagram
+
+```mermaid
+graph TB
+    %% Input Data Sources
+    subgraph "Input Data (Google Cloud Storage)"
+        MAPS_STH[("📁 Maps-STH<br/>• STHCleaned_1.csv<br/>• sartorious_2021.csv<br/>• LF_MDA_Africa_2024_IU_updated.csv")]
+        MAPS_SCH[("📁 Maps-SCH<br/>• Schisto_IU_Cleaned_1.csv<br/>• S.haematobium_G*.xlsx<br/>• G*.mansoni_*.csv")]
+        ESPEN[("📁 ESPEN_IU_2021<br/>• ESPEN_IU_2021.shp<br/>• ESPEN_IU_2021.dbf")]
+    end
+
+    %% Stage 1: Fitting-Prep
+    subgraph "Stage 1: Fitting-Prep"
+        FP_STH["🔧 STH Scripts<br/>• prepare_histories.R<br/>• prepare_histories_trichuris.R<br/>• prepare_maps_allspecies.R<br/>• prepare_histories_projections.R"]
+        FP_SCH["🔧 SCH Scripts<br/>• prepare_histories_and_maps_haematobium.R<br/>• prepare_histories_and_maps_mansoni.R<br/>• prepare_histories_projections_sch.R"]
+        
+        FP_OUT[("📤 Artefacts<br/>• endgame_inputs/{species}/InputMDA_MTP_{id}.xlsx<br/>• endgame_inputs/{species}/InputMDA_MTP_projections_{iu}.xlsx<br/>• Maps/table_iu_idx_{species}.csv<br/>• Maps/iu_task_lookup_{species}.rds<br/>• Maps/proj_iu_task_lookup_{species}.rds")]
+    end
+
+    %% Stage 2: Fitting
+    subgraph "Stage 2: Fitting"
+        FIT_STH["🔧 STH Fitting<br/>• sth_fitting.R<br/>• amis_integration.R<br/>• {species}_prior.R"]
+        FIT_SCH["🔧 SCH Fitting<br/>• sch_fitting.R<br/>• amis_integration.R<br/>• sch_prior.R"]
+        
+        FIT_OUT[("📤 Artefacts<br/>• AMIS_output/{species}_amis_output{id}.Rdata<br/>• AMIS_output/{species}_amis_output{id}_sigma{value}.Rdata<br/>• fitting_manifest_batch_{id}.json")]
+    end
+
+    %% Stage 3: Projections-Prep
+    subgraph "Stage 3: Projections-Prep"
+        PP_SCRIPT["🔧 Scripts<br/>• preprocess_for_projections.R<br/>• IUsWithInsufficientESS.R"]
+        
+        PP_OUT[("📤 Artefacts<br/>• InputPars_MTP_{species}/InputPars_MTP_{iu}.csv<br/>• post_AMIS_analysis/proc_output_{species}_{id}.csv")]
+    end
+
+    %% Stage 4: Nearterm-Projections
+    subgraph "Stage 4: Nearterm-Projections"
+        NP_STH["🔧 STH Projections<br/>• sth_projections_per_IU.py"]
+        NP_SCH["🔧 SCH Projections<br/>• sch_projections_per_IU.py"]
+        
+        NP_OUT[("📤 Artefacts<br/>• projections/{species}/{country}/{country}{iu}/<br/>  - {Species}_{country}{iu}.p<br/>  - PrevDataset_{Species}_{country}{iu}.csv")]
+    end
+
+    %% Data Flow Connections
+    MAPS_STH --> FP_STH
+    MAPS_SCH --> FP_SCH
+    ESPEN --> FP_SCH
+    
+    FP_STH --> FP_OUT
+    FP_SCH --> FP_OUT
+    
+    FP_OUT --> FIT_STH
+    FP_OUT --> FIT_SCH
+    
+    FIT_STH --> FIT_OUT
+    FIT_SCH --> FIT_OUT
+    
+    FIT_OUT --> PP_SCRIPT
+    FP_OUT -.->|"lookup tables"| PP_SCRIPT
+    
+    PP_SCRIPT --> PP_OUT
+    
+    PP_OUT --> NP_STH
+    PP_OUT --> NP_SCH
+    FP_OUT -.->|"coverage files"| NP_STH
+    FP_OUT -.->|"coverage files"| NP_SCH
+    
+    NP_STH --> NP_OUT
+    NP_SCH --> NP_OUT
+
+    %% Styling
+    classDef inputData fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    classDef script fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef artefact fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    
+    class MAPS_STH,MAPS_SCH,ESPEN inputData
+    class FP_STH,FP_SCH,FIT_STH,FIT_SCH,PP_SCRIPT,NP_STH,NP_SCH script
+    class FP_OUT,FIT_OUT,PP_OUT,NP_OUT artefact
+```
+
+## 📁 Detailed Input/Output Specifications
+
+### Stage 1: Fitting-Prep
+
+**Inputs:**
+- **STH**: 
+  - `Maps-STH/STHCleaned_1.csv` - STH prevalence data
+  - `Maps-STH/sartorious_2021.csv` - Disability weights
+  - `Maps-STH/LF_MDA_Africa_2024_IU_updated.csv` - MDA coverage
+- **SCH**:
+  - `Maps-SCH/Schisto_IU_Cleaned_1.csv` - SCH prevalence data
+  - `Maps-SCH/S.haematobium_G*.xlsx` - Haematobium group data (G1-G6, 2005/2013/2023)
+  - `Maps-SCH/G*.mansoni_*.csv` - Mansoni group data (G1-G6, 2005/2013/2023)
+  - `ESPEN_IU_2021/*` - ESPEN shapefiles for IU boundaries
+
+**Outputs:**
+```
+fitting-prep/artefacts/
+├── endgame_inputs/
+│   ├── STH/
+│   │   ├── InputMDA_MTP_{id}.xlsx                    # Coverage files for fitting (per batch)
+│   │   └── InputMDA_MTP_projections_{iu}.xlsx        # Coverage files for projections (per IU)
+│   ├── sch-haematobium/
+│   │   ├── InputMDA_MTP_{id}.xlsx
+│   │   └── InputMDA_MTP_projections_{iu}.xlsx
+│   └── sch-mansoni/
+│       ├── InputMDA_MTP_{id}.xlsx
+│       └── InputMDA_MTP_projections_{iu}.xlsx
+└── Maps/
+    ├── table_iu_idx_{species}.csv                    # IU-TaskID mapping table
+    ├── iu_task_lookup_{species}.rds                  # Fitting batch lookup
+    └── proj_iu_task_lookup_{species}.rds             # Projection batch lookup
+```
+
+### Stage 2: Fitting
+
+**Inputs:**
+- `fitting-prep/artefacts/endgame_inputs/{species}/InputMDA_MTP_{id}.xlsx`
+- `fitting-prep/artefacts/Maps/iu_task_lookup_{species}.rds`
+- Model priors: `{species}_prior.R`
+
+**Outputs:**
+```
+fitting/artefacts/
+├── AMIS_output/
+│   ├── {species}_amis_output{id}.Rdata              # Default sigma (0.0025)
+│   └── {species}_amis_output{id}_sigma{value}.Rdata # Custom sigma (e.g., 0.025)
+└── fitting_manifest_batch_{id}.json                 # ESS analysis and metadata
+```
+
+### Stage 3: Projections-Prep
+
+**Inputs:**
+- `fitting/artefacts/AMIS_output/{species}_amis_output{id}*.Rdata`
+- `fitting-prep/artefacts/Maps/table_iu_idx_{species}.csv`
+- `fitting-prep/artefacts/Maps/proj_iu_task_lookup_{species}.rds`
+
+**Outputs:**
+```
+projections-prep/artefacts/
+├── InputPars_MTP_{species}/
+│   └── InputPars_MTP_{iu}.csv                       # Sampled parameters per IU
+└── post_AMIS_analysis/
+    └── proc_output_{species}_{id}.csv               # Processed AMIS output
+```
+
+### Stage 4: Nearterm-Projections
+
+**Inputs:**
+- `projections-prep/artefacts/InputPars_MTP_{species}/InputPars_MTP_{iu}.csv`
+- `fitting-prep/artefacts/endgame_inputs/{species}/InputMDA_MTP_projections_{iu}.xlsx`
+- `fitting-prep/artefacts/Maps/table_iu_idx_{species}.csv`
+- Model parameters: `{species}_params_projections.txt`
+
+**Outputs:**
+```
+projections/artefacts/
+└── projections/
+    └── {species}/
+        └── {country}/
+            └── {country}{iu}/
+                ├── {Species}_{country}{iu}.p        # Projection results (pickle)
+                └── PrevDataset_{Species}_{country}{iu}.csv  # Prevalence dataset
+```
+
+## 🔀 Cross-Stage Dependencies
+
+The pipeline has both linear and cross-stage dependencies:
+
+```mermaid
+graph LR
+    subgraph "Direct Dependencies"
+        FP[fitting-prep] --> F[fitting]
+        F --> PP[projections-prep]
+        PP --> NP[nearterm-projections]
+    end
+    
+    subgraph "Cross-Stage Dependencies"
+        FP2[fitting-prep] -.->|"coverage files<br/>lookup tables"| NP2[nearterm-projections]
+    end
+    
+    style FP fill:#e1f5fe
+    style F fill:#fff3e0
+    style PP fill:#f3e5f5
+    style NP fill:#e8f5e9
+    style FP2 fill:#e1f5fe
+    style NP2 fill:#e8f5e9
+```
+
+**Key Cross-Dependencies:**
+- `nearterm-projections` requires files from **both** `fitting-prep` (coverage files, lookup tables) and `projections-prep` (parameter files)
+- `projections-prep` uses lookup tables from `fitting-prep` to map TaskIDs to IUs
+
 ## Volume Mount Requirements
 
 | Mount Path | Purpose | Required For |

@@ -29,7 +29,7 @@ docker run --rm \
 ```
 
 ### Scenario 2: Fitting Only (Distributed Batch Processing)
-**Cloud Deployment**: Run only fitting stage with pre-built artifacts
+**Cloud Execution**: Run only fitting stage with pre-built artifacts
 
 ```bash
 # STH Fitting - Production parameters
@@ -165,7 +165,7 @@ projections/artefacts/projections/{species}/{country}/{country}{iu}/{Species}_{c
 **Location**: `projections/artefacts/projections/{species}/{country}/{country}{iu}/`
 **Examples**: `projections/ascaris/TZA/TZA12345/Asc_TZA12345.p`
 
-## 🔧 Key Parameters for Cloud Deployment
+## 🔧 Key Parameters
 
 | Parameter | STH Production | SCH Production | Purpose |
 |-----------|---------------|----------------|---------|
@@ -214,15 +214,15 @@ This creates: `ascaris_amis_output10_sigma0.025.Rdata`
 
 ## 🗂️ Supported Species
 
-### STH (Soil-Transmitted Helminths)
-- `ascaris` - Ascaris lumbricoides
-- `hookworm` - Necator americanus/Ancylostoma duodenale  
-- `trichuris` - Trichuris trichiura
+### STH
+- `ascaris`
+- `hookworm`
+- `trichuris`
 
-### SCH (Schistosomiasis)
-- `haematobium` - Schistosoma haematobium
-- `mansoni_low_burden` - S. mansoni (low burden areas)
-- `mansoni_high_burden` - S. mansoni (high burden areas)
+### SCH
+- `haematobium`
+- `mansoni_low_burden`
+- `mansoni_high_burden`
 
 ---
 

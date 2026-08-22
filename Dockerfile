@@ -73,6 +73,8 @@ RUN mkdir -p -m 0600 ~/.ssh && \
 # Order of the scripts follows the stages of the pipeline
 ADD fitting-prep ${FITTING_PREP_DIR}
 ADD fitting ${FITTING_DIR}
+# STH AMIS prior input (also kept at repo root for convenience)
+ADD RawDataForPrior.csv ${FITTING_DIR}/inputs/RawDataForPrior.csv
 ADD projections-prep ${PROJECTIONS_PREP_DIR}
 ADD projections ${PROJECTIONS_DIR}
 ADD post_AMIS_analysis ${STH_SCH_AMIS_DIR}/post_AMIS_analysis
@@ -83,7 +85,8 @@ ADD https://storage.googleapis.com/ntd-data-storage/pipeline/sch/ESPEN_IU_2021.t
 ADD https://storage.googleapis.com/ntd-data-storage/pipeline/sch/Maps-SCH.tar.gz ${FITTING_PREP_DIR}/inputs/Maps-SCH.tar.gz
 
 # Extract input data archives
-RUN cd ${FITTING_PREP_DIR}/inputs && \
+RUN mkdir -p ${FITTING_PREP_DIR}/inputs ${FITTING_PREP_DIR}/artefacts && \
+    cd ${FITTING_PREP_DIR}/inputs && \
     tar -xzf Maps-STH.tar.gz && \
     tar -xzf ESPEN_IU_2021.tar.gz && \
     tar -xzf Maps-SCH.tar.gz && \
@@ -94,14 +97,14 @@ ADD https://storage.googleapis.com/ntd-data-storage/pipeline/sth/fitting-prep-ar
 ADD https://storage.googleapis.com/ntd-data-storage/pipeline/sch/fitting-prep-artefacts-sch.tar.gz ${FITTING_PREP_DIR}/fitting-prep-artefacts-sch.tar.gz
 
 # Extract fitting-prep artifacts (strip top-level directory)
-RUN cd ${FITTING_PREP_DIR} && \
+RUN mkdir -p ${FITTING_PREP_DIR}/artefacts && \
+    cd ${FITTING_PREP_DIR} && \
     tar -xzf fitting-prep-artefacts-sth.tar.gz --strip-components=1 -C artefacts && \
     tar -xzf fitting-prep-artefacts-sch.tar.gz --strip-components=1 -C artefacts && \
     rm fitting-prep-artefacts-sth.tar.gz fitting-prep-artefacts-sch.tar.gz
 
-# Get STH/SCH model
-# Note: run-amis-fitting branch now includes filepath concatenation fix
-ADD --keep-git-dir git@github.com:NTD-Modelling-Consortium/ntd-model-sch.git#run-amis-fitting ${STH_SCH_MODEL_DIR}
+# Get STH/SCH model (master includes *_params_projections.txt for SCH/STH)
+ADD --keep-git-dir git@github.com:NTD-Modelling-Consortium/ntd-model-sch.git#master ${STH_SCH_MODEL_DIR}
 RUN cd ${STH_SCH_MODEL_DIR}
 
 WORKDIR ${STH_SCH_AMIS_DIR}
@@ -113,15 +116,6 @@ RUN --mount=type=cache,target=/root/.cache/pip cd ${STH_SCH_MODEL_DIR} && pip in
 # This ensures the model uses the data files from the source repository
 RUN rm -rf /opt/conda/lib/python3.10/site-packages/sch_simulation/data && \
     ln -s ${STH_SCH_MODEL_DIR}/sch_simulation/data /opt/conda/lib/python3.10/site-packages/sch_simulation/data
-
-# WORKAROUND: Copy missing SCH projection parameter files from updateImportation branch
-# The run-amis-fitting branch is missing *_params_projections.txt files for SCH species
-# These files exist in the updateImportation branch, so we fetch them separately
-RUN mkdir -p /tmp/updateImportation
-ADD --keep-git-dir git@github.com:NTD-Modelling-Consortium/ntd-model-sch.git#updateImportation /tmp/updateImportation
-RUN cp -f /tmp/updateImportation/sch_simulation/data/SCH_params/*_params_projections.txt \
-    ${STH_SCH_MODEL_DIR}/sch_simulation/data/SCH_params/ || echo "No projection parameter files found in updateImportation"
-RUN rm -rf /tmp/updateImportation
 
 # Set environment variables for all paths
 ENV STH_SCH_AMIS_DIR=${STH_SCH_AMIS_DIR}
